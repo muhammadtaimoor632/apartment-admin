@@ -43,10 +43,14 @@ class _ApartmentInventoryListPageState
       final allItems = await ApiService.fetchInventoryItems();
       if (mounted) {
         setState(() {
-          // Filter items for this specific apartment
+          // NEW: Filter items to only include those that have a stock entry for the current apartment.
           _inventoryItems = allItems
-              .where((item) => item.apartmentId == widget.apartmentId)
+              .where((item) => item.stock.containsKey(widget.apartmentId))
               .toList();
+
+          _inventoryItems.sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
         });
         _scrapeMissingImages();
       }
@@ -111,12 +115,16 @@ class _ApartmentInventoryListPageState
     });
 
     try {
-      final response = await ApiService.updateStock(item.id, action);
+      final response =
+          await ApiService.updateStock(item.id, action, widget.apartmentId);
       if (response.statusCode == 200) {
         final dynamic decodedData = json.decode(response.body);
+        final String apartmentId = decodedData['apartmentId'];
+        final int newStock = decodedData['new_stock'];
+
         if (mounted) {
           setState(() {
-            item.stock = decodedData['new_stock'].toString();
+            item.stock[apartmentId] = newStock;
           });
         }
       } else {
@@ -159,15 +167,10 @@ class _ApartmentInventoryListPageState
           name: result['name'],
           url: result['url'],
           stock: result['stock'],
-          apartmentId: widget.apartmentId, // ✅ THE FIX IS HERE
+          apartmentId: widget.apartmentId,
         );
-        if (!mounted) return;
-        setState(() {
-          _inventoryItems.add(newItem);
-          _inventoryItems.sort(
-            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-          );
-        });
+        // After adding, reload the inventory to apply the filter
+        _loadInventory();
         _scrapeMissingImages(singleItem: newItem);
       } catch (e) {
         if (mounted) {
@@ -278,7 +281,7 @@ class _ApartmentInventoryListPageState
           constraints: const BoxConstraints(),
         ),
         Text(
-          item.stock,
+          (item.stock[widget.apartmentId] ?? 0).toString(),
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         IconButton(
@@ -322,10 +325,14 @@ class _ApartmentInventoryListPageState
         onRefresh: _loadInventory,
         child: Stack(
           children: [
-            const Center(
-              child: Text(
-                'No inventory items found for this apartment.',
-                style: TextStyle(fontSize: 18, color: Colors.grey),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Text(
+                  'No inventory items found for ${widget.apartmentName}.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 18, color: Colors.grey),
+                ),
               ),
             ),
             ListView(), // To make RefreshIndicator work
@@ -522,7 +529,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _stockController,
-                decoration: const InputDecoration(labelText: 'Stock Number'),
+                decoration: const InputDecoration(labelText: 'Initial Stock'),
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value == null || value.isEmpty) {

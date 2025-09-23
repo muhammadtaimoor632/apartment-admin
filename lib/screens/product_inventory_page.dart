@@ -82,8 +82,9 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
               itemCount: apartments.length,
               itemBuilder: (context, index) {
                 final apartment = apartments[index];
+                // NEW: Count only the items that have a stock record for this specific apartment.
                 final inventoryCount = allInventoryItems
-                    .where((item) => item.apartmentId == apartment.id)
+                    .where((item) => item.stock.containsKey(apartment.id))
                     .length;
                 final subtitle =
                     '$inventoryCount ${inventoryCount == 1 ? "item" : "items"}';

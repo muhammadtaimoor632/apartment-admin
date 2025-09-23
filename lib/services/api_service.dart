@@ -78,14 +78,19 @@ class ApiService {
     }
   }
 
-  static Future<http.Response> updateStock(int itemId, String action) {
+  static Future<http.Response> updateStock(
+      int itemId, String action, String apartmentId) { // Now requires apartmentId
     final uri = Uri.parse(
       '$_wordpressUrl$_apiNamespace/inventory/update-stock',
     );
     return http.post(
       uri,
       headers: _authHeaders,
-      body: json.encode({'item_id': itemId, 'action': action}),
+      body: json.encode({
+        'item_id': itemId,
+        'action': action,
+        'apartmentId': apartmentId, // Send apartmentId in the request
+      }),
     );
   }
 
@@ -113,7 +118,8 @@ class ApiService {
       body: json.encode({
         'name': name,
         'url': url,
-        'stock': stock,
+        // Send stock as a map for the specific apartment
+        'stock': {apartmentId: stock},
         'apartmentId': apartmentId,
       }),
     );
