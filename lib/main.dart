@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cleaning_app/screens/main_screen.dart';
+import 'package:wild_atlantic_hub/screens/main_screen.dart';
 
 void main() {
   runApp(const MyApp());

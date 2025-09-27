@@ -1,0 +1,24 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Get the latest TestFlight build number"
+  lane :latest_testflight_build_number do |options|
+    latest_testflight_build_number(version: options[:version])
+  end
+
+  desc "Set the version and build number in Xcode"
+  lane :set_version_and_build do |options|
+    increment_build_number(build_number: options[:build_number])
+    increment_version_number(version_number: options[:version_number])
+  end
+
+  desc "Submit new build to TestFlight"
+  lane :app_store_release do |options|
+    # Use the simpler upload_to_testflight action
+    upload_to_testflight(
+      ipa: options[:ipa_path],
+      skip_waiting_for_build_processing: true,
+      changelog: options[:release_notes] # Use 'changelog' for this action
+    )
+  end
+end

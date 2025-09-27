@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:cleaning_app/models/inventory_item.dart';
-import 'package:cleaning_app/models/cleaning_details.dart';
+import 'package:wild_atlantic_hub/models/inventory_item.dart';
+import 'package:wild_atlantic_hub/models/cleaning_details.dart';
 
 class ApiService {
   static const String _wordpressUrl = 'https://wildatlanticapartments.com';
@@ -79,7 +79,11 @@ class ApiService {
   }
 
   static Future<http.Response> updateStock(
-      int itemId, String action, String apartmentId) { // Now requires apartmentId
+    int itemId,
+    String action,
+    String apartmentId,
+  ) {
+    // Now requires apartmentId
     final uri = Uri.parse(
       '$_wordpressUrl$_apiNamespace/inventory/update-stock',
     );

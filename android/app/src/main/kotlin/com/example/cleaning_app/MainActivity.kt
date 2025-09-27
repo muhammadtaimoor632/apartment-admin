@@ -1,4 +1,4 @@
-package com.example.cleaning_app
+package com.jamieharrisonmedia.wildatlantichub
 
 import io.flutter.embedding.android.FlutterActivity
 

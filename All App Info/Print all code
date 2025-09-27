@@ -1,0 +1,74 @@
+# =========================
+# 1. Project Config & Platform Files
+# =========================
+find . \
+  -path '*/build/*' -prune -o \
+  \( \
+    -name "*.dart" \
+    -o -name "pubspec.yaml" \
+    -o -name "pubspec.lock" \
+    -o -name "analysis_options.yaml" \
+    -o -name "Info.plist" \
+    -o -name "AndroidManifest.xml" \
+    -o -name "AppDelegate.swift" \
+    -o -name "*.entitlements" \
+    -o -name "*.sh" \
+    -o -name "*.ps1" \
+    -o -name "Fastfile" \
+    -o -name "Appfile" \
+  \) \
+  -exec sh -c '
+    for f in "$@"; do
+      echo "\n--- $f ---"
+      cat "$f"
+    done
+  ' sh {} +
+
+# =========================
+# 2. Dart Source Code Only
+# =========================
+find ./lib -name "*.dart" \
+  -exec sh -c '
+    for f in "$@"; do
+      echo "\n--- $f ---"
+      cat "$f"
+    done
+  ' sh {} +
+
+
+# =========================
+# 3. Other files
+# =========================
+
+find . \
+  -path '*/build/*' -prune -o \
+  -path './lib/*' -prune -o \
+  \( -name "pubspec.yaml" \
+     -o -name "pubspec.lock" \
+     -o -name "analysis_options.yaml" \
+     -o -name "Info.plist" \
+     -o -name "AndroidManifest.xml" \
+     -o -name "AppDelegate.swift" \
+     -o -name "*.entitlements" \
+     -o -name "*.sh" \
+     -o -name "*.ps1" \
+     -o -name "*.bat" \
+     -o -name "Fastfile" \
+     -o -name "Appfile" \) \
+  -exec sh -c 'for f in "$@"; do echo "\n--- $f ---"; cat "$f"; done' sh {} +
+
+
+
+# =========================
+# 4. Include Contracts
+# =========================
+
+find . -path '*/build/*' -prune -o \
+  \( -name "*.dart" \
+  -o -name "pubspec.yaml" \
+  -o -name "pubspec.lock" \
+  -o -name "analysis_options.yaml" \
+  -o -name "Info.plist" \
+  -o -name "AndroidManifest.xml" \
+  -o -path "./assets/contracts/*.txt" \) \
+  -exec sh -c 'for f in "$@"; do echo "\n--- $f ---"; cat "$f"; done' sh {} +

@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:cleaning_app/models/inventory_item.dart';
-import 'package:cleaning_app/services/api_service.dart';
-import 'package:cleaning_app/services/scraper_service.dart';
+import 'package:wild_atlantic_hub/models/inventory_item.dart';
+import 'package:wild_atlantic_hub/services/api_service.dart';
+import 'package:wild_atlantic_hub/services/scraper_service.dart';
 
 class ApartmentInventoryListPage extends StatefulWidget {
   final String apartmentId;
@@ -115,8 +115,11 @@ class _ApartmentInventoryListPageState
     });
 
     try {
-      final response =
-          await ApiService.updateStock(item.id, action, widget.apartmentId);
+      final response = await ApiService.updateStock(
+        item.id,
+        action,
+        widget.apartmentId,
+      );
       if (response.statusCode == 200) {
         final dynamic decodedData = json.decode(response.body);
         final String apartmentId = decodedData['apartmentId'];

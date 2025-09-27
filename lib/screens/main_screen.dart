@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cleaning_app/screens/cleaning_status_page.dart';
-import 'package:cleaning_app/screens/product_inventory_page.dart';
+import 'package:wild_atlantic_hub/screens/cleaning_status_page.dart';
+import 'package:wild_atlantic_hub/screens/product_inventory_page.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});

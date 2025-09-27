@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:cleaning_app/models/cleaning_details.dart';
-import 'package:cleaning_app/models/inventory_item.dart';
-import 'package:cleaning_app/services/api_service.dart';
-import 'package:cleaning_app/screens/apartment_inventory_list_page.dart';
+import 'package:wild_atlantic_hub/models/cleaning_details.dart';
+import 'package:wild_atlantic_hub/models/inventory_item.dart';
+import 'package:wild_atlantic_hub/services/api_service.dart';
+import 'package:wild_atlantic_hub/screens/apartment_inventory_list_page.dart';
 
 class ProductInventoryPage extends StatefulWidget {
   const ProductInventoryPage({super.key});

@@ -1,0 +1,17 @@
+How to Use
+
+Make it executable: Open your terminal, navigate to your project directory, and run the following command:
+
+Bash
+
+chmod +x build_all.sh
+
+
+Run the script: Execute the script from your terminal:
+
+Bash
+
+./build_all.sh
+
+
+.\build_windows.bat

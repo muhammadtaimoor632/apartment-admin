@@ -1,0 +1,18 @@
+default_platform(:android)
+
+platform :android do
+  desc "Gets the latest version code from all tracks in Google Play"
+  lane :google_play_track_version_codes do |options|
+    google_play_track_version_codes(track: options[:track])
+  end
+
+  desc "Build and upload to Google Play"
+  lane :release do |options|
+    upload_to_play_store(
+      track: 'internal',
+      aab: options[:aab_path],
+      release_status: 'draft'
+      # Changelog is now read automatically from the metadata folder
+    )
+  end
+end

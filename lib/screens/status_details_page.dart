@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cleaning_app/models/cleaning_details.dart';
-import 'package:cleaning_app/services/api_service.dart';
+import 'package:wild_atlantic_hub/models/cleaning_details.dart';
+import 'package:wild_atlantic_hub/services/api_service.dart';
 
 class StatusDetailsPage extends StatefulWidget {
   const StatusDetailsPage({super.key});

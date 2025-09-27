@@ -1,0 +1,179 @@
+Flutter Deployment Master Checklist
+This guide contains the complete, step-by-step process for setting up a fully automated build and deployment pipeline for a new Flutter project on both iOS and Android.
+
+Part A: Initial Project & App Store Configuration
+This part covers setting the unique identifiers and user-facing names for your app and creating the necessary records with Apple and Google.
+
+1. Configure App Identifiers
+
+In pubspec.yaml:
+Open your pubspec.yaml file. Change the name to be a valid Dart package identifier (all lowercase, using underscores for spaces, no special characters).
+
+Example: name: my_new_app
+
+For iOS:
+
+Open your project's ios folder in Xcode.
+
+Select Runner in the project navigator, then the Runner target.
+
+Go to the Signing & Capabilities tab.
+
+Change the Bundle Identifier to your unique ID (e.g., com.yourcompany.newapp).
+
+For Android:
+
+Open the file android/app/build.gradle.
+
+Find the defaultConfig block.
+
+Change the applicationId to your unique ID (e.g., "com.yourcompany.newapp").
+
+2. Configure App Display Name
+
+In the Build Script: Open your build_all.sh script and set the APP_NAME variable to your desired app name, with no spaces.
+
+Example: APP_NAME="MyNewApp"
+
+For iOS: Open ios/Runner/Info.plist and set the <string> value for the CFBundleDisplayName key to be the exact same as APP_NAME.
+
+<key>CFBundleDisplayName</key>
+<string>MyNewApp</string>
+
+For Android: Open android/app/src/main/AndroidManifest.xml and set the android:label in the <application> tag to be the exact same as APP_NAME.
+
+<application android:label="MyNewApp" ...>
+
+3. Create App Records Online
+
+For Apple:
+
+Go to the Apple Developer Identifiers page and register your new Bundle ID.
+
+Go to App Store Connect and create a "New App," selecting the Bundle ID you just registered.
+
+Crucially, you must fill out all required metadata (privacy policy URL, screenshots, etc.) on the App Store Connect website at least once.
+
+For Google:
+
+Go to the Google Play Console.
+
+Click "Create app" and follow the setup wizard, making sure to use the exact Package Name you set in build.gradle.
+
+Part B: Platform-Specific Setup
+4. Android Setup
+
+Generate Upload Keystore: Run the keytool command to create your .jks file and store it in a safe, permanent location outside your project folder.
+
+Example: keytool -genkey -v -keystore "/path/to/safe/folder/my_new_app.jks" ...
+
+Create key.properties File: Create a file at android/key.properties with your keystore credentials.
+
+storePassword=your_store_password
+keyPassword=your_key_password
+keyAlias=your_key_alias
+storeFile=/path/to/safe/folder/my_new_app.jks
+
+Add to .gitignore: Run echo "/android/key.properties" >> .gitignore.
+
+Install & Configure Fastlane:
+
+Navigate to your android directory: cd android.
+
+Create a Gemfile: echo "source 'https://rubygems.org'\ngem 'fastlane'" > Gemfile.
+
+Run bundle install and then bundle update fastlane.
+
+Run bundle exec fastlane init.
+
+Edit android/fastlane/Appfile to ensure the json_key_file path and package_name are correct.
+
+Replace the entire content of android/fastlane/Fastfile with this corrected code:
+
+default_platform(:android)
+
+platform :android do
+  desc "Gets the latest version code from all tracks in Google Play"
+  lane :google_play_track_version_codes do |options|
+    google_play_track_version_codes(track: options[:track])
+  end
+
+  desc "Build and upload to Google Play"
+  lane :release do |options|
+    upload_to_play_store(
+      track: 'internal',
+      aab: options[:aab_path],
+      release_status: 'draft',
+      whatsnew: { "en-US": options[:changelog] }
+    )
+  end
+end
+
+5. iOS Setup
+
+Set Export Compliance: Open ios/Runner/Info.plist and add the following block inside the main <dict> tag to automate the encryption compliance question:
+
+<key>ITSAppUsesNonExemptEncryption</key>
+<false/>
+
+Install & Configure Fastlane:
+
+Navigate to your iOS directory: cd ios.
+
+Create a Gemfile: echo "source 'https://rubygems.org'\ngem 'fastlane'" > Gemfile.
+
+Run bundle install and then bundle update fastlane.
+
+Run bundle exec fastlane init.
+
+Edit ios/fastlane/Appfile to ensure the app_identifier and team_id are correct.
+
+Replace the entire content of ios/fastlane/Fastfile with this robust, two-step upload and submit process:
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Get the latest TestFlight build number"
+  lane :latest_testflight_build_number do |options|
+    latest_testflight_build_number(version: options[:version])
+  end
+
+  desc "Set the version and build number in Xcode"
+  lane :set_version_and_build do |options|
+    increment_build_number(build_number: options[:build_number])
+    increment_version_number(version_number: options[:version_number])
+  end
+
+  desc "Build, upload, and submit for review"
+  lane :app_store_release do |options|
+    upload_to_testflight(
+      ipa: options[:ipa_path],
+      changelog: options[:release_notes]
+    )
+    # Optionally, add a deliver step here if you want to promote to review automatically
+    # deliver(submit_for_review: true, force: true, skip_binary_upload: true, skip_screenshots: true)
+  end
+end
+
+Part C: Final Script Setup
+6. Copy and Finalize the Build Script
+
+Copy your perfected build_all.sh script to the project root.
+
+Make it executable: chmod +x build_all.sh.
+
+7. Create the Release Notes File
+
+Run mkdir -p release_notes && echo "Initial release." > release_notes/whats_new.txt.
+
+8. Create a .env File for Secrets
+
+Create a .env file in the project root.
+
+Add your secrets. It must contain:
+
+WP_USER="your_wordpress_user"
+WP_PASSWORD="your_wordpress_app_password"
+FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+
+Run echo "\n# Ignore environment variables file\n.env" >> .gitignore.

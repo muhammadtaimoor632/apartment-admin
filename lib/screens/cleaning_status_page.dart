@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:cleaning_app/models/apartment.dart';
-import 'package:cleaning_app/services/api_service.dart';
-import 'package:cleaning_app/screens/status_details_page.dart';
+import 'package:wild_atlantic_hub/models/apartment.dart';
+import 'package:wild_atlantic_hub/services/api_service.dart';
+import 'package:wild_atlantic_hub/screens/status_details_page.dart';
 
 class CleaningStatusPage extends StatefulWidget {
   const CleaningStatusPage({super.key});

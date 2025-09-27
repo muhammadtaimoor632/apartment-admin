@@ -1,0 +1,27 @@
+Here is a list of the specific items you'll need, categorized by whether they are unique for each app or tied to your developer account.
+
+## General Project
+
+Item	Uniqueness	Description
+App Name	🟣 Per-App	The user-facing name of your application (e.g., "Toursmart"). You set this in your script and pubspec.yaml.
+
+Export to Sheets
+
+## Apple / iOS 🍎
+
+Item	Uniqueness	Description
+
+Bundle ID	🟣 Per-App	A unique, reverse-domain style identifier for your app (e.g., com.yourcompany.yourapp). This is set in Xcode and must be registered on the Apple Developer portal.
+Apple Team ID	🟢 Account-Level	A 10-character string that uniquely identifies your developer team or organization. You use the same Team ID for all apps under that account. You can find it in the "Membership" section of the Apple Developer portal.
+App Store Connect API Key	🟢 Account-Level	This is the modern, recommended way for tools like Fastlane to securely connect to Apple's services. It consists of a Key ID, an Issuer ID, and a downloadable .p8 private key file. You generate this once in App Store Connect and can use it for all your apps.
+Signing Certificate	🟢 Account-Level	The digital certificate (.p12 file) that identifies you or your organization. You typically have one "Apple Distribution" certificate for all your apps. Fastlane tools like match can manage this for you.
+Provisioning Profile	🟣 Per-App	A file that connects your signing certificate and Bundle ID, authorizing your app to be installed on devices or submitted to the App Store. Each app needs its own. Fastlane's match is excellent at managing these automatically.
+
+Export to Sheets
+
+## Google / Android 🤖
+
+Item	Uniqueness	Description
+Package Name	🟣 Per-App	The unique identifier for your Android app (e.g., com.yourcompany.yourapp), equivalent to the iOS Bundle ID. You define this in your app's build.gradle file.
+Upload Keystore & Credentials	🟣 Per-App	A .jks file containing your app's signing key. It is critical to have a unique keystore for each app and to back it up securely. The alias, store password, and key password associated with it are also unique to that keystore.
+Google Play JSON Key	🟢 Account-Level	A JSON file (.json) containing the credentials for a Google Cloud service account. You create this service account and grant it permission to manage your apps in the Google Play Console. This allows Fastlane to upload builds and manage store listings on your behalf.
