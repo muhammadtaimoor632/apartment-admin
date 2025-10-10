@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:wild_atlantic_hub/models/apartment.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:wild_atlantic_hub/screens/status_details_page.dart';
+import 'package:wild_atlantic_hub/models/cleaning_details.dart';
 
 class CleaningStatusPage extends StatefulWidget {
   const CleaningStatusPage({super.key});
@@ -31,7 +32,8 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
     }
 
     try {
-      final detailsList = await ApiService.fetchCleaningDetails();
+      final List<CleaningDetails> detailsList =
+          await ApiService.fetchCleaningDetails();
       if (mounted) {
         setState(() {
           _apartments = detailsList
@@ -39,7 +41,15 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
                 (d) => Apartment(id: d.id, name: d.name, imageUrl: d.imageUrl),
               )
               .toList();
+
+          // Initialize local state from the fetched details
+          for (final detail in detailsList) {
+            _cleaningStatus[detail.id] = 'not_cleaned'; // Default value
+            _isLoading[detail.id] = false;
+            _ratings[detail.id] = detail.rating; // Use rating from server
+          }
         });
+        await _fetchStatusesFromServer(); // Overwrite with live statuses
       }
     } catch (e) {
       if (mounted) {
@@ -48,18 +58,12 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
           Colors.red,
         );
       }
-    }
-
-    for (var apt in _apartments) {
-      _cleaningStatus[apt.id] = 'not_cleaned';
-      _isLoading[apt.id] = false;
-      _ratings[apt.id] = 0;
-    }
-    await _fetchStatusesFromServer();
-    if (mounted) {
-      setState(() {
-        _isFetchingInitialData = false;
-      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetchingInitialData = false;
+        });
+      }
     }
   }
 
@@ -169,7 +173,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
@@ -184,12 +188,57 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
     }
   }
 
+  Future<void> _updateRating(String apartmentId, int newRating) async {
+    if (!mounted) return;
+
+    final originalRating = _ratings[apartmentId];
+    setState(() {
+      _isLoading[apartmentId] = true;
+      _ratings[apartmentId] = newRating; // Optimistic UI update
+    });
+
+    try {
+      final response = await ApiService.updateCleaningRating(
+        apartmentId: apartmentId,
+        rating: newRating,
+      );
+
+      if (response.statusCode != 200) {
+        final responseBody = json.decode(response.body);
+        final errorMessage =
+            responseBody['message'] ?? 'An unknown error occurred.';
+        _showSnackBar('Error: $errorMessage', Colors.red);
+        if (mounted) {
+          setState(() {
+            _ratings[apartmentId] = originalRating!; // Rollback on error
+          });
+        }
+      } else {
+        _showSnackBar('Rating updated!', Colors.green);
+      }
+    } catch (e) {
+      _showSnackBar('Failed to connect. Check your connection.', Colors.red);
+      if (mounted) {
+        setState(() {
+          _ratings[apartmentId] = originalRating!; // Rollback on error
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading[apartmentId] = false;
+        });
+      }
+    }
+  }
+
   Future<void> _updateStatus(
     String apartmentId,
     String statusToSend, {
     int? durationMinutes,
   }) async {
     if (!mounted) return;
+
     setState(() {
       _isLoading[apartmentId] = true;
     });
@@ -207,11 +256,9 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
           setState(() {
             if (statusToSend == 'start') {
               _cleaningStatus[apartmentId] = 'in_progress';
-            }
-            if (statusToSend == 'stop') {
+            } else if (statusToSend == 'stop') {
               _cleaningStatus[apartmentId] = 'cleaned';
-            }
-            if (statusToSend == 'reset') {
+            } else if (statusToSend == 'reset') {
               _cleaningStatus[apartmentId] = 'not_cleaned';
               _ratings[apartmentId] = 0;
             }
@@ -260,17 +307,13 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
             final ratingValue = index + 1;
             return IconButton(
               icon: Icon(
-                _ratings[apartmentId]! >= ratingValue
+                (_ratings[apartmentId] ?? 0) >= ratingValue
                     ? Icons.star
                     : Icons.star_border,
                 color: Colors.amber,
                 size: 32,
               ),
-              onPressed: () {
-                setState(() {
-                  _ratings[apartmentId] = ratingValue;
-                });
-              },
+              onPressed: () => _updateRating(apartmentId, ratingValue),
             );
           }),
         ),
@@ -324,20 +367,20 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
                     case 'in_progress':
                       buttonText = 'Finish Cleaning';
                       buttonColor = const Color(0xFFE57373);
-                      onPressedAction = () =>
-                          _updateStatus(apartment.id, 'stop');
+                      onPressedAction =
+                          () => _updateStatus(apartment.id, 'stop');
                       break;
                     case 'cleaned':
                       buttonText = 'Resume Cleaning';
                       buttonColor = const Color(0xFFF7C59F);
-                      onPressedAction = () =>
-                          _updateStatus(apartment.id, 'start');
+                      onPressedAction =
+                          () => _updateStatus(apartment.id, 'start');
                       break;
                     default:
                       buttonText = 'Start Cleaning';
                       buttonColor = const Color(0xFF8CB2A4);
-                      onPressedAction = () =>
-                          _showCleaningTimePicker(apartment.id);
+                      onPressedAction =
+                          () => _showCleaningTimePicker(apartment.id);
                   }
 
                   return Card(
@@ -403,9 +446,8 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
                                   width: 220,
                                   height: 50,
                                   child: ElevatedButton(
-                                    onPressed: isButtonDisabled
-                                        ? null
-                                        : onPressedAction,
+                                    onPressed:
+                                        isButtonDisabled ? null : onPressedAction,
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: buttonColor,
                                       foregroundColor: Colors.white,

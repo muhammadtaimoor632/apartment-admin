@@ -16,6 +16,22 @@ class ApiService {
     'Content-Type': 'application/json',
     'Authorization': _basicAuth,
   };
+  //  Cleaning ratings reflection --
+
+  static Future<http.Response> updateCleaningRating({
+    required String apartmentId,
+    required int rating,
+  }) {
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/ratings/update');
+    return http.post(
+      uri,
+      headers: _authHeaders,
+      body: json.encode({
+        'apartment_id': apartmentId,
+        'todays_rating': rating,
+      }),
+    );
+  }
 
   // --- Cleaning Status Endpoints ---
 
