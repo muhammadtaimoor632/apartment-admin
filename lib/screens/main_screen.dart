@@ -39,31 +39,68 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    // If the user taps the currently selected tab, pop to the root of that stack.
+    if (index == _selectedIndex) {
+      switch (index) {
+        case 0:
+          _cleaningNavKey.currentState?.popUntil((route) => route.isFirst);
+          break;
+        case 1:
+          _inventoryNavKey.currentState?.popUntil((route) => route.isFirst);
+          break;
+      }
+    } else {
+      setState(() {
+        _selectedIndex = index;
+      });
+    }
+  }
+
+  Future<bool> _onWillPop() async {
+    final key = _selectedIndex == 0 ? _cleaningNavKey : _inventoryNavKey;
+    final navigatorState = key.currentState;
+
+    // 1. Check if the current navigator can be popped.
+    if (navigatorState != null && navigatorState.canPop()) {
+      navigatorState.pop();
+      return false; // Prevents the app from closing.
+    }
+
+    // 2. If it can't be popped, and we're not on the first tab, switch to the first tab.
+    if (_selectedIndex != 0) {
+      setState(() {
+        _selectedIndex = 0;
+      });
+      return false; // Prevents the app from closing.
+    }
+
+    // 3. If we are on the first tab and the navigator can't pop, allow the app to close.
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: _pages),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: const Color(0xFF8CB2A4),
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.checklist_rtl_outlined),
-            label: 'Cleaning',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_2_outlined),
-            label: 'Inventory',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white70,
-        onTap: _onItemTapped,
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        body: IndexedStack(index: _selectedIndex, children: _pages),
+        bottomNavigationBar: BottomNavigationBar(
+          backgroundColor: const Color(0xFF8CB2A4),
+          items: const <BottomNavigationBarItem>[
+            BottomNavigationBarItem(
+              icon: Icon(Icons.checklist_rtl_outlined),
+              label: 'Cleaning',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.inventory_2_outlined),
+              label: 'Inventory',
+            ),
+          ],
+          currentIndex: _selectedIndex,
+          selectedItemColor: Colors.white,
+          unselectedItemColor: Colors.white70,
+          onTap: _onItemTapped,
+        ),
       ),
     );
   }

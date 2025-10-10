@@ -4,7 +4,7 @@ import 'package:wild_atlantic_hub/models/inventory_item.dart';
 import 'package:wild_atlantic_hub/models/cleaning_details.dart';
 
 class ApiService {
-  static const String _wordpressUrl = 'https://wildatlanticapartments.com';
+  static const String _wordpressUrl = 'https://www.wildatlanticwayapartments.com';
   static const String _apiNamespace = '/wp-json/apartment_admin/v1';
   static const String _username = 'info@vivantestudios.com';
   static const String _applicationPassword = 'cf6A VVaH KXqh tmMA y3hK Czhr';
