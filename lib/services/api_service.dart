@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:wild_atlantic_hub/models/inventory_item.dart';
 import 'package:wild_atlantic_hub/models/cleaning_details.dart';
+import 'package:wild_atlantic_hub/models/booking_event.dart';
 
 class ApiService {
   static const String _wordpressUrl = 'https://wildatlanticapartments.com';
@@ -159,5 +160,34 @@ class ApiService {
       headers: _authHeaders,
       body: json.encode({'item_id': itemId}),
     );
+  }
+
+  // --- Booking Calendar Endpoints ---
+
+  static Future<List<BookingCalendar>> fetchBookingCalendars() async {
+    final uri = Uri.parse('$_wordpressUrl/wp-json/cbc/v1/calendars');
+    final response = await http.get(uri, headers: _authHeaders);
+    if (response.statusCode == 200) {
+      final List<dynamic> decodedData = json.decode(response.body);
+      return decodedData
+          .map((data) =>
+              BookingCalendar.fromJson(data as Map<String, dynamic>))
+          .toList();
+    } else {
+      throw Exception(
+          'Failed to load booking calendars: ${response.reasonPhrase}');
+    }
+  }
+
+  static Future<BookingCalendar> refreshBookingCalendar(String calId) async {
+    final uri = Uri.parse('$_wordpressUrl/wp-json/cbc/v1/calendars/$calId/refresh');
+    final response = await http.post(uri, headers: _authHeaders);
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return BookingCalendar.fromJson(data as Map<String, dynamic>);
+    } else {
+      throw Exception(
+          'Failed to refresh calendar: ${response.reasonPhrase}');
+    }
   }
 }

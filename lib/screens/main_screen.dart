@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wild_atlantic_hub/screens/cleaning_status_page.dart';
 import 'package:wild_atlantic_hub/screens/product_inventory_page.dart';
+import 'package:wild_atlantic_hub/screens/booking_calendar_page.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -14,6 +15,7 @@ class _MainScreenState extends State<MainScreen> {
   // Keys to control the navigation stack for each tab
   final _cleaningNavKey = GlobalKey<NavigatorState>();
   final _inventoryNavKey = GlobalKey<NavigatorState>();
+  final _bookingsNavKey = GlobalKey<NavigatorState>();
 
   late final List<Widget> _pages;
 
@@ -26,6 +28,13 @@ class _MainScreenState extends State<MainScreen> {
         onGenerateRoute: (route) => MaterialPageRoute(
           settings: route,
           builder: (context) => const CleaningStatusPage(),
+        ),
+      ),
+      Navigator(
+        key: _bookingsNavKey,
+        onGenerateRoute: (route) => MaterialPageRoute(
+          settings: route,
+          builder: (context) => const BookingCalendarPage(),
         ),
       ),
       Navigator(
@@ -54,6 +63,10 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.checklist_rtl_outlined),
             label: 'Cleaning',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_month_outlined),
+            label: 'Bookings',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.inventory_2_outlined),
