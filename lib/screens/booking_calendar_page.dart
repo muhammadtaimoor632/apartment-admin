@@ -565,8 +565,11 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     // Show only current + future events
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final relevantEvents =
-        events.where((e) => !e.end.isBefore(today)).toList();
+    
+    final relevantEvents = events.where((e) {
+      final endDate = DateTime(e.end.year, e.end.month, e.end.day);
+      return endDate.isAfter(today);
+    }).toList();
 
     if (relevantEvents.isEmpty) {
       return Container(
@@ -586,16 +589,38 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
       );
     }
 
+    final currentlyHosting = relevantEvents.where((e) {
+      final startDate = DateTime(e.start.year, e.start.month, e.start.day);
+      return !startDate.isAfter(today);
+    }).toList();
+
+    final upcomingBookings = relevantEvents.where((e) {
+      final startDate = DateTime(e.start.year, e.start.month, e.start.day);
+      return startDate.isAfter(today);
+    }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Upcoming Bookings',
-            style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey[700])),
-        const SizedBox(height: 10),
-        ...relevantEvents.map((event) => _buildEventCard(event)),
+        if (currentlyHosting.isNotEmpty) ...[
+          Text('Currently Hosting',
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey[700])),
+          const SizedBox(height: 10),
+          ...currentlyHosting.map((event) => _buildEventCard(event)),
+          if (upcomingBookings.isNotEmpty) const SizedBox(height: 10),
+        ],
+        if (upcomingBookings.isNotEmpty) ...[
+          Text('Upcoming Booking',
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey[700])),
+          const SizedBox(height: 10),
+          ...upcomingBookings.map((event) => _buildEventCard(event)),
+        ],
       ],
     );
   }
