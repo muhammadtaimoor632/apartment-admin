@@ -82,6 +82,23 @@ class ApiService {
     );
   }
 
+  static Future<http.Response> updateCleaningFeedback({
+    required String apartmentId,
+    required String remarks,
+    String? base64Image,
+  }) {
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/feedback');
+    return http.post(
+      uri,
+      headers: _authHeaders,
+      body: json.encode({
+        'apartment_id': apartmentId,
+        'remarks': remarks,
+        if (base64Image != null) 'image': base64Image,
+      }),
+    );
+  }
+
   // --- Inventory Endpoints ---
 
   static Future<List<InventoryItem>> fetchInventoryItems() async {

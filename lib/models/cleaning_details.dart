@@ -7,6 +7,9 @@ class CleaningDetails {
   final String duration;
   final int rating;
   final String imageUrl; // ADDED
+  final String lastRatedAt; // ADDED
+  final String remarks; // ADDED
+  final String cleaningImageUrl; // ADDED
 
   CleaningDetails({
     required this.id,
@@ -17,6 +20,9 @@ class CleaningDetails {
     required this.duration,
     required this.rating,
     required this.imageUrl, // ADDED
+    required this.lastRatedAt, // ADDED
+    required this.remarks, // ADDED
+    required this.cleaningImageUrl, // ADDED
   });
 
   factory CleaningDetails.fromJson(Map<String, dynamic> json) {
@@ -29,6 +35,9 @@ class CleaningDetails {
       duration: json['duration'] ?? 'N/A',
       rating: json['rating'] ?? 0,
       imageUrl: json['imageUrl'] ?? '', // ADDED
+      lastRatedAt: json['lastRatedAt'] ?? 'Unknown', // ADDED
+      remarks: json['remarks'] ?? '', // ADDED
+      cleaningImageUrl: json['cleaningImageUrl'] ?? '', // ADDED
     );
   }
 }

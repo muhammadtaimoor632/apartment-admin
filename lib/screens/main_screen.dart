@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wild_atlantic_hub/screens/cleaning_status_page.dart';
+import 'package:wild_atlantic_hub/screens/today_checkins_page.dart';
 import 'package:wild_atlantic_hub/screens/product_inventory_page.dart';
 import 'package:wild_atlantic_hub/screens/booking_calendar_page.dart';
 
@@ -14,6 +15,7 @@ class _MainScreenState extends State<MainScreen> {
 
   // Keys to control the navigation stack for each tab
   final _cleaningNavKey = GlobalKey<NavigatorState>();
+  final _todayNavKey = GlobalKey<NavigatorState>();
   final _inventoryNavKey = GlobalKey<NavigatorState>();
   final _bookingsNavKey = GlobalKey<NavigatorState>();
 
@@ -28,6 +30,13 @@ class _MainScreenState extends State<MainScreen> {
         onGenerateRoute: (route) => MaterialPageRoute(
           settings: route,
           builder: (context) => const CleaningStatusPage(),
+        ),
+      ),
+      Navigator(
+        key: _todayNavKey,
+        onGenerateRoute: (route) => MaterialPageRoute(
+          settings: route,
+          builder: (context) => const TodayCheckinsPage(),
         ),
       ),
       Navigator(
@@ -58,11 +67,16 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
         backgroundColor: const Color(0xFF8CB2A4),
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
             icon: Icon(Icons.checklist_rtl_outlined),
             label: 'Cleaning',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.today),
+            label: 'Today',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.calendar_month_outlined),

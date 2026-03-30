@@ -589,11 +589,19 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
       );
     }
 
+    // Currently hosting: started BEFORE today and still active
     final currentlyHosting = relevantEvents.where((e) {
       final startDate = DateTime(e.start.year, e.start.month, e.start.day);
-      return !startDate.isAfter(today);
+      return startDate.isBefore(today);
     }).toList();
 
+    // Checking in today: start date is exactly today
+    final todayCheckIns = relevantEvents.where((e) {
+      final startDate = DateTime(e.start.year, e.start.month, e.start.day);
+      return startDate.isAtSameMomentAs(today);
+    }).toList();
+
+    // Upcoming: start date is after today
     final upcomingBookings = relevantEvents.where((e) {
       final startDate = DateTime(e.start.year, e.start.month, e.start.day);
       return startDate.isAfter(today);
@@ -602,6 +610,51 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (todayCheckIns.isNotEmpty) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF8CB2A4), Color(0xFF6D9B8C)],
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.today, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                const Text(
+                  'Checking In Today',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${todayCheckIns.length}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ...todayCheckIns.map((event) => _buildEventCard(event)),
+          if (currentlyHosting.isNotEmpty || upcomingBookings.isNotEmpty)
+            const SizedBox(height: 10),
+        ],
         if (currentlyHosting.isNotEmpty) ...[
           Text('Currently Hosting',
               style: TextStyle(
@@ -610,7 +663,8 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                   color: Colors.grey[700])),
           const SizedBox(height: 10),
           ...currentlyHosting.map((event) => _buildEventCard(event)),
-          if (upcomingBookings.isNotEmpty) const SizedBox(height: 10),
+          if (upcomingBookings.isNotEmpty)
+            const SizedBox(height: 10),
         ],
         if (upcomingBookings.isNotEmpty) ...[
           Text('Upcoming Booking',

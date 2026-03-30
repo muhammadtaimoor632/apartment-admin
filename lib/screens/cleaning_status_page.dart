@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:wild_atlantic_hub/models/apartment.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:wild_atlantic_hub/screens/status_details_page.dart';
@@ -16,12 +18,29 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
   final Map<String, String> _cleaningStatus = {};
   final Map<String, bool> _isLoading = {};
   final Map<String, int> _ratings = {};
+  
+  // New State maps
+  final Map<String, String> _lastRatedAts = {};
+  final Map<String, TextEditingController> _remarksControllers = {};
+  final Map<String, File?> _selectedImages = {};
+  final Map<String, String> _existingImageUrls = {};
+  final Map<String, String> _startTimes = {};
+  final Map<String, String> _endTimes = {};
+  
   bool _isFetchingInitialData = true;
 
   @override
   void initState() {
     super.initState();
     _initializeStatuses();
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _remarksControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _initializeStatuses() async {
@@ -47,6 +66,16 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
             _cleaningStatus[detail.id] = 'not_cleaned'; // Default value
             _isLoading[detail.id] = false;
             _ratings[detail.id] = detail.rating; // Use rating from server
+            _lastRatedAts[detail.id] = detail.lastRatedAt;
+            _existingImageUrls[detail.id] = detail.cleaningImageUrl;
+            _startTimes[detail.id] = detail.startTime;
+            _endTimes[detail.id] = detail.endTime;
+            
+            if (!_remarksControllers.containsKey(detail.id)) {
+              _remarksControllers[detail.id] = TextEditingController(text: detail.remarks);
+            } else {
+              _remarksControllers[detail.id]!.text = detail.remarks;
+            }
           }
         });
         await _fetchStatusesFromServer(); // Overwrite with live statuses
@@ -289,7 +318,65 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
     );
   }
 
+  Future<void> _pickImage(String apartmentId) async {
+    final picker = ImagePicker();
+    try {
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImages[apartmentId] = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      _showSnackBar('Failed to pick image.', Colors.red);
+    }
+  }
+
+  Future<void> _saveFeedback(String apartmentId) async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading[apartmentId] = true;
+    });
+
+    try {
+      String? base64Image;
+      if (_selectedImages[apartmentId] != null) {
+        final bytes = await _selectedImages[apartmentId]!.readAsBytes();
+        base64Image = base64Encode(bytes);
+      }
+      
+      final remarks = _remarksControllers[apartmentId]?.text ?? '';
+
+      final response = await ApiService.updateCleaningFeedback(
+        apartmentId: apartmentId,
+        remarks: remarks,
+        base64Image: base64Image,
+      );
+
+      if (response.statusCode == 200) {
+        _showSnackBar('Feedback saved successfully!', Colors.green);
+        setState(() {
+            _selectedImages[apartmentId] = null;
+        });
+      } else {
+        final responseBody = json.decode(response.body);
+        final errorMessage = responseBody['message'] ?? 'An unknown error occurred.';
+        _showSnackBar('Error: $errorMessage', Colors.red);
+      }
+      
+    } catch (e) {
+      _showSnackBar('Failed to connect. Check your connection.', Colors.red);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading[apartmentId] = false;
+        });
+      }
+    }
+  }
+
   Widget _buildStarRating(String apartmentId) {
+    final lastRated = _lastRatedAts[apartmentId];
     return Column(
       children: [
         const Text(
@@ -317,8 +404,101 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
             );
           }),
         ),
+        if (lastRated != null && lastRated.isNotEmpty && lastRated != 'Unknown')
+          Padding(
+            padding: const EdgeInsets.only(top: 4.0),
+            child: Text(
+              'Last rated: $lastRated',
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+            ),
+          ),
       ],
     );
+  }
+
+  Widget _buildFeedbackSection(String apartmentId) {
+     return Column(
+       crossAxisAlignment: CrossAxisAlignment.stretch,
+       children: [
+         const SizedBox(height: 16),
+         const Text(
+           'Condition Remarks',
+           style: TextStyle(
+             fontSize: 14,
+             fontWeight: FontWeight.w600,
+             color: Colors.black54,
+           ),
+         ),
+         const SizedBox(height: 8),
+         TextField(
+           controller: _remarksControllers[apartmentId],
+           maxLines: 2,
+           decoration: InputDecoration(
+             hintText: 'Add remarks on room cleanliness...',
+             hintStyle: TextStyle(fontSize: 13, color: Colors.grey[400]),
+             border: OutlineInputBorder(
+               borderRadius: BorderRadius.circular(10),
+               borderSide: BorderSide(color: Colors.grey.shade300),
+             ),
+             enabledBorder: OutlineInputBorder(
+               borderRadius: BorderRadius.circular(10),
+               borderSide: BorderSide(color: Colors.grey.shade300),
+             ),
+             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+           ),
+         ),
+         const SizedBox(height: 12),
+         Row(
+           children: [
+             Expanded(
+               child: OutlinedButton.icon(
+                 onPressed: () => _pickImage(apartmentId),
+                 icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                 label: const Text('Add Photo', style: TextStyle(fontSize: 13)),
+                 style: OutlinedButton.styleFrom(
+                   foregroundColor: Colors.blueGrey,
+                   side: const BorderSide(color: Colors.blueGrey),
+                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                 ),
+               ),
+             ),
+             const SizedBox(width: 8),
+             Expanded(
+               child: ElevatedButton(
+                 onPressed: _isLoading[apartmentId] == true ? null : () => _saveFeedback(apartmentId),
+                 style: ElevatedButton.styleFrom(
+                   backgroundColor: const Color(0xFF8CB2A4),
+                   foregroundColor: Colors.white,
+                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                 ),
+                 child: const Text('Save Feedback', style: TextStyle(fontSize: 13)),
+               ),
+             ),
+           ],
+         ),
+         if (_selectedImages[apartmentId] != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.image, size: 16, color: Colors.green),
+                  const SizedBox(width: 4),
+                  const Expanded(
+                    child: Text('Image selected to upload', style: TextStyle(fontSize: 12, color: Colors.green)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 16),
+                    onPressed: () {
+                      setState(() {
+                         _selectedImages[apartmentId] = null;
+                      });
+                    },
+                  )
+                ],
+              ),
+            ),
+       ],
+     );
   }
 
   @override
@@ -439,6 +619,18 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
                           ),
                           const SizedBox(height: 16),
                           _buildStarRating(apartment.id),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Started: ${_startTimes[apartment.id] ?? 'N/A'}',
+                            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Text(
+                              'Finished: ${_endTimes[apartment.id] ?? 'N/A'}',
+                              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                            ),
+                          ),
                           const SizedBox(height: 16),
                           isLoading
                               ? const Center(child: CircularProgressIndicator())
@@ -464,6 +656,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
                                     child: Text(buttonText),
                                   ),
                                 ),
+                          _buildFeedbackSection(apartment.id),
                           const SizedBox(height: 8),
                         ],
                       ),
