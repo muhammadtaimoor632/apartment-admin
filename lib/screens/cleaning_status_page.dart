@@ -300,6 +300,10 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
               _ratings[apartmentId] = 0;
               _startTimes[apartmentId] = 'N/A';
               _endTimes[apartmentId] = 'N/A';
+              _lastRatedAts[apartmentId] = '';
+              _remarksControllers[apartmentId]?.text = '';
+              _selectedImages[apartmentId] = null;
+              _existingImageUrls[apartmentId] = '';
             }
           });
         }
