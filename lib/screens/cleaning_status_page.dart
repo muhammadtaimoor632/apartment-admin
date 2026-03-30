@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:wild_atlantic_hub/models/apartment.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:wild_atlantic_hub/screens/status_details_page.dart';
@@ -18,15 +19,19 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
   final Map<String, String> _cleaningStatus = {};
   final Map<String, bool> _isLoading = {};
   final Map<String, int> _ratings = {};
-  
-  // New State maps
+
+  // State maps
   final Map<String, String> _lastRatedAts = {};
   final Map<String, TextEditingController> _remarksControllers = {};
   final Map<String, File?> _selectedImages = {};
   final Map<String, String> _existingImageUrls = {};
   final Map<String, String> _startTimes = {};
   final Map<String, String> _endTimes = {};
-  
+  final Map<String, List<RatingHistoryEntry>> _ratingHistories = {};
+
+  // Track which apartment card is expanded
+  final Map<String, bool> _expandedCards = {};
+
   bool _isFetchingInitialData = true;
 
   @override
@@ -61,24 +66,29 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
               )
               .toList();
 
-          // Initialize local state from the fetched details
           for (final detail in detailsList) {
-            _cleaningStatus[detail.id] = 'not_cleaned'; // Default value
+            _cleaningStatus[detail.id] = 'not_cleaned';
             _isLoading[detail.id] = false;
-            _ratings[detail.id] = detail.rating; // Use rating from server
+            _ratings[detail.id] = detail.rating;
             _lastRatedAts[detail.id] = detail.lastRatedAt;
             _existingImageUrls[detail.id] = detail.cleaningImageUrl;
             _startTimes[detail.id] = detail.startTime;
             _endTimes[detail.id] = detail.endTime;
-            
+            _ratingHistories[detail.id] = detail.ratingHistory;
+
+            if (!_expandedCards.containsKey(detail.id)) {
+              _expandedCards[detail.id] = false;
+            }
+
             if (!_remarksControllers.containsKey(detail.id)) {
-              _remarksControllers[detail.id] = TextEditingController(text: detail.remarks);
+              _remarksControllers[detail.id] =
+                  TextEditingController(text: detail.remarks);
             } else {
               _remarksControllers[detail.id]!.text = detail.remarks;
             }
           }
         });
-        await _fetchStatusesFromServer(); // Overwrite with live statuses
+        await _fetchStatusesFromServer();
       }
     } catch (e) {
       if (mounted) {
@@ -123,23 +133,14 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
         return SimpleDialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
           ),
-          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-          contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-          title: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              const Center(child: Text('Estimated Cleaning Time')),
-              Positioned(
-                top: -16,
-                right: -16,
-                child: IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ),
-            ],
+          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          contentPadding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+          title: const Text(
+            'Estimated Cleaning Time',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
           children: <Widget>[
             SimpleDialogOption(
@@ -180,25 +181,11 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-        contentPadding: const EdgeInsets.fromLTRB(30, 24, 30, 24),
-        title: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            const Text('Confirm Reset'),
-            Positioned(
-              top: -16,
-              right: -16,
-              child: IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(false),
-              ),
-            ),
-          ],
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Confirm Reset', style: TextStyle(fontSize: 16)),
         content: Text(
-          'Are you sure you want to reset all cleaning data for ${apartment.name} today?',
+          'Reset all cleaning data for ${apartment.name} today?',
+          style: const TextStyle(fontSize: 14),
         ),
         actions: [
           TextButton(
@@ -223,7 +210,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
     final originalRating = _ratings[apartmentId];
     setState(() {
       _isLoading[apartmentId] = true;
-      _ratings[apartmentId] = newRating; // Optimistic UI update
+      _ratings[apartmentId] = newRating;
     });
 
     try {
@@ -239,17 +226,31 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
         _showSnackBar('Error: $errorMessage', Colors.red);
         if (mounted) {
           setState(() {
-            _ratings[apartmentId] = originalRating!; // Rollback on error
+            _ratings[apartmentId] = originalRating!;
           });
         }
       } else {
         _showSnackBar('Rating updated!', Colors.green);
+        // Update the last rated timestamp immediately
+        if (mounted) {
+          setState(() {
+            _lastRatedAts[apartmentId] =
+                DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now());
+          });
+        }
+        // If rating is low (<=2), show feedback requirement hint
+        if (newRating <= 2) {
+          _showSnackBar(
+            'Low rating — please add remarks below.',
+            Colors.orange,
+          );
+        }
       }
     } catch (e) {
       _showSnackBar('Failed to connect. Check your connection.', Colors.red);
       if (mounted) {
         setState(() {
-          _ratings[apartmentId] = originalRating!; // Rollback on error
+          _ratings[apartmentId] = originalRating!;
         });
       }
     } finally {
@@ -285,11 +286,20 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
           setState(() {
             if (statusToSend == 'start') {
               _cleaningStatus[apartmentId] = 'in_progress';
+              // Update start time to now
+              _startTimes[apartmentId] =
+                  DateFormat('hh:mm a').format(DateTime.now());
+              _endTimes[apartmentId] = 'N/A';
             } else if (statusToSend == 'stop') {
               _cleaningStatus[apartmentId] = 'cleaned';
+              // Update end time to now
+              _endTimes[apartmentId] =
+                  DateFormat('hh:mm a').format(DateTime.now());
             } else if (statusToSend == 'reset') {
               _cleaningStatus[apartmentId] = 'not_cleaned';
               _ratings[apartmentId] = 0;
+              _startTimes[apartmentId] = 'N/A';
+              _endTimes[apartmentId] = 'N/A';
             }
           });
         }
@@ -314,14 +324,21 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
   void _showSnackBar(String message, Color backgroundColor) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: backgroundColor),
+      SnackBar(
+        content: Text(message, style: const TextStyle(fontSize: 13)),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 
   Future<void> _pickImage(String apartmentId) async {
     final picker = ImagePicker();
     try {
-      final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+      final pickedFile =
+          await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
       if (pickedFile != null) {
         setState(() {
           _selectedImages[apartmentId] = File(pickedFile.path);
@@ -332,8 +349,89 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
     }
   }
 
+  void _showFullScreenImage(ImageProvider imageProvider, String title) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Center(
+                child: Image(
+                  image: imageProvider,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.broken_image, color: Colors.white54, size: 48),
+                        SizedBox(height: 8),
+                        Text('Failed to load image',
+                            style: TextStyle(color: Colors.white54)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              left: 8,
+              right: 8,
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black45,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Icon(Icons.close, color: Colors.white, size: 22),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _saveFeedback(String apartmentId) async {
     if (!mounted) return;
+
+    final int currentRating = _ratings[apartmentId] ?? 0;
+    final String remarks = _remarksControllers[apartmentId]?.text ?? '';
+
+    // Validate: if rating is low (<=2), remarks are required
+    if (currentRating > 0 && currentRating <= 2 && remarks.trim().isEmpty) {
+      _showSnackBar(
+        'Remarks are required for ratings of 2 stars or below.',
+        Colors.orange,
+      );
+      return;
+    }
+
     setState(() {
       _isLoading[apartmentId] = true;
     });
@@ -344,8 +442,6 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
         final bytes = await _selectedImages[apartmentId]!.readAsBytes();
         base64Image = base64Encode(bytes);
       }
-      
-      final remarks = _remarksControllers[apartmentId]?.text ?? '';
 
       final response = await ApiService.updateCleaningFeedback(
         apartmentId: apartmentId,
@@ -355,15 +451,25 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
 
       if (response.statusCode == 200) {
         _showSnackBar('Feedback saved successfully!', Colors.green);
+        // Try to extract uploaded image URL from response
+        try {
+          final responseBody = json.decode(response.body);
+          if (responseBody['image_url'] != null &&
+              responseBody['image_url'].toString().isNotEmpty) {
+            setState(() {
+              _existingImageUrls[apartmentId] = responseBody['image_url'];
+            });
+          }
+        } catch (_) {}
         setState(() {
-            _selectedImages[apartmentId] = null;
+          _selectedImages[apartmentId] = null;
         });
       } else {
         final responseBody = json.decode(response.body);
-        final errorMessage = responseBody['message'] ?? 'An unknown error occurred.';
+        final errorMessage =
+            responseBody['message'] ?? 'An unknown error occurred.';
         _showSnackBar('Error: $errorMessage', Colors.red);
       }
-      
     } catch (e) {
       _showSnackBar('Failed to connect. Check your connection.', Colors.red);
     } finally {
@@ -375,141 +481,771 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
     }
   }
 
-  Widget _buildStarRating(String apartmentId) {
-    final lastRated = _lastRatedAts[apartmentId];
-    return Column(
-      children: [
-        const Text(
-          'Todays Rating',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: Colors.black54,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(5, (index) {
-            final ratingValue = index + 1;
-            return IconButton(
-              icon: Icon(
-                (_ratings[apartmentId] ?? 0) >= ratingValue
-                    ? Icons.star
-                    : Icons.star_border,
-                color: Colors.amber,
-                size: 32,
-              ),
-              onPressed: () => _updateRating(apartmentId, ratingValue),
-            );
-          }),
-        ),
-        if (lastRated != null && lastRated.isNotEmpty && lastRated != 'Unknown')
-          Padding(
-            padding: const EdgeInsets.only(top: 4.0),
-            child: Text(
-              'Last rated: $lastRated',
-              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+  // ─── Status helpers ──────────────────────────────────────
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'in_progress':
+        return Colors.orange;
+      case 'cleaned':
+        return const Color(0xFF4CAF50);
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'in_progress':
+        return 'In Progress';
+      case 'cleaned':
+        return 'Cleaned';
+      default:
+        return 'Not Cleaned';
+    }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status) {
+      case 'in_progress':
+        return Icons.timelapse;
+      case 'cleaned':
+        return Icons.check_circle;
+      default:
+        return Icons.circle_outlined;
+    }
+  }
+
+  // ─── Build Widgets ───────────────────────────────────────
+
+  Widget _buildCompactStarRating(String apartmentId) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (index) {
+        final ratingValue = index + 1;
+        return GestureDetector(
+          onTap: () => _updateRating(apartmentId, ratingValue),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Icon(
+              (_ratings[apartmentId] ?? 0) >= ratingValue
+                  ? Icons.star_rounded
+                  : Icons.star_outline_rounded,
+              color: Colors.amber.shade600,
+              size: 28,
             ),
           ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildTimingRow(String apartmentId) {
+    final start = _startTimes[apartmentId] ?? 'N/A';
+    final end = _endTimes[apartmentId] ?? 'N/A';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Icon(Icons.play_circle_outline,
+                    size: 16, color: Colors.green.shade600),
+                const SizedBox(width: 6),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Started',
+                        style: TextStyle(
+                            fontSize: 10, color: Colors.grey.shade500)),
+                    Text(start,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Container(width: 1, height: 28, color: Colors.grey.shade300),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('Finished',
+                        style: TextStyle(
+                            fontSize: 10, color: Colors.grey.shade500)),
+                    Text(end,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                const SizedBox(width: 6),
+                Icon(Icons.stop_circle_outlined,
+                    size: 16, color: Colors.red.shade400),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRatingHistorySection(String apartmentId) {
+    final history = _ratingHistories[apartmentId] ?? [];
+
+    if (history.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: Text(
+          'No previous rating history available.',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade400,
+              fontStyle: FontStyle.italic),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(Icons.history, size: 15, color: Colors.grey.shade500),
+            const SizedBox(width: 4),
+            Text(
+              'Rating History',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ...history.take(5).map((entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      entry.date,
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    const Spacer(),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(5, (i) {
+                        return Icon(
+                          i < entry.rating
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
+                          size: 14,
+                          color: Colors.amber.shade600,
+                        );
+                      }),
+                    ),
+                    if (entry.remarks.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Tooltip(
+                        message: entry.remarks,
+                        child: Icon(Icons.comment,
+                            size: 13, color: Colors.grey.shade400),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            )),
       ],
     );
   }
 
-  Widget _buildFeedbackSection(String apartmentId) {
-     return Column(
-       crossAxisAlignment: CrossAxisAlignment.stretch,
-       children: [
-         const SizedBox(height: 16),
-         const Text(
-           'Condition Remarks',
-           style: TextStyle(
-             fontSize: 14,
-             fontWeight: FontWeight.w600,
-             color: Colors.black54,
-           ),
-         ),
-         const SizedBox(height: 8),
-         TextField(
-           controller: _remarksControllers[apartmentId],
-           maxLines: 2,
-           decoration: InputDecoration(
-             hintText: 'Add remarks on room cleanliness...',
-             hintStyle: TextStyle(fontSize: 13, color: Colors.grey[400]),
-             border: OutlineInputBorder(
-               borderRadius: BorderRadius.circular(10),
-               borderSide: BorderSide(color: Colors.grey.shade300),
-             ),
-             enabledBorder: OutlineInputBorder(
-               borderRadius: BorderRadius.circular(10),
-               borderSide: BorderSide(color: Colors.grey.shade300),
-             ),
-             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-           ),
-         ),
-         const SizedBox(height: 12),
-         Row(
-           children: [
-             Expanded(
-               child: OutlinedButton.icon(
-                 onPressed: () => _pickImage(apartmentId),
-                 icon: const Icon(Icons.camera_alt_outlined, size: 18),
-                 label: const Text('Add Photo', style: TextStyle(fontSize: 13)),
-                 style: OutlinedButton.styleFrom(
-                   foregroundColor: Colors.blueGrey,
-                   side: const BorderSide(color: Colors.blueGrey),
-                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                 ),
-               ),
-             ),
-             const SizedBox(width: 8),
-             Expanded(
-               child: ElevatedButton(
-                 onPressed: _isLoading[apartmentId] == true ? null : () => _saveFeedback(apartmentId),
-                 style: ElevatedButton.styleFrom(
-                   backgroundColor: const Color(0xFF8CB2A4),
-                   foregroundColor: Colors.white,
-                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                 ),
-                 child: const Text('Save Feedback', style: TextStyle(fontSize: 13)),
-               ),
-             ),
-           ],
-         ),
-         if (_selectedImages[apartmentId] != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8.0),
-              child: Row(
-                children: [
-                  const Icon(Icons.image, size: 16, color: Colors.green),
-                  const SizedBox(width: 4),
-                  const Expanded(
-                    child: Text('Image selected to upload', style: TextStyle(fontSize: 12, color: Colors.green)),
+  Widget _buildImagePreview(String apartmentId) {
+    final File? localImage = _selectedImages[apartmentId];
+    final String serverUrl = _existingImageUrls[apartmentId] ?? '';
+    final bool hasLocalImage = localImage != null;
+    final bool hasServerImage = serverUrl.isNotEmpty;
+
+    if (!hasLocalImage && !hasServerImage) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.photo_library_outlined,
+                  size: 14, color: Colors.grey.shade500),
+              const SizedBox(width: 4),
+              Text(
+                hasLocalImage ? 'Photo to Upload' : 'Uploaded Photo',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const Spacer(),
+              if (hasLocalImage)
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedImages[apartmentId] = null;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.close, size: 12, color: Colors.red.shade400),
+                        const SizedBox(width: 2),
+                        Text('Remove',
+                            style: TextStyle(
+                                fontSize: 10, color: Colors.red.shade400)),
+                      ],
+                    ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 16),
-                    onPressed: () {
-                      setState(() {
-                         _selectedImages[apartmentId] = null;
-                      });
-                    },
-                  )
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: () {
+              if (hasLocalImage) {
+                _showFullScreenImage(
+                  FileImage(localImage),
+                  'Photo Preview',
+                );
+              } else if (hasServerImage) {
+                _showFullScreenImage(
+                  NetworkImage(serverUrl),
+                  'Uploaded Photo',
+                );
+              }
+            },
+            child: Container(
+              height: 140,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade200),
+                color: Colors.grey.shade100,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (hasLocalImage)
+                    Image.file(
+                      localImage,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(Icons.broken_image,
+                            color: Colors.grey, size: 32),
+                      ),
+                    )
+                  else if (hasServerImage)
+                    Image.network(
+                      serverUrl,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (_, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        );
+                      },
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.broken_image,
+                                color: Colors.grey, size: 28),
+                            SizedBox(height: 4),
+                            Text('Could not load image',
+                                style: TextStyle(
+                                    fontSize: 11, color: Colors.grey)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  // Tap-to-preview overlay
+                  Positioned(
+                    bottom: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.zoom_in, size: 13, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text('Tap to preview',
+                              style: TextStyle(
+                                  fontSize: 10, color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-       ],
-     );
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedbackSection(String apartmentId) {
+    final int currentRating = _ratings[apartmentId] ?? 0;
+    final bool isLowRating = currentRating > 0 && currentRating <= 2;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Text(
+              'Remarks',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            if (isLowRating) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Required',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.red.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _remarksControllers[apartmentId],
+          maxLines: 2,
+          style: const TextStyle(fontSize: 13),
+          decoration: InputDecoration(
+            hintText: isLowRating
+                ? 'Please describe the issues found...'
+                : 'Optional remarks on cleanliness...',
+            hintStyle: TextStyle(fontSize: 12, color: Colors.grey[400]),
+            filled: true,
+            fillColor: Colors.grey.shade50,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade200),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade200),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFF8CB2A4)),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _pickImage(apartmentId),
+                icon: const Icon(Icons.camera_alt_outlined, size: 15),
+                label: Text(
+                  _selectedImages[apartmentId] != null
+                      ? 'Change Photo'
+                      : 'Add Photo',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _selectedImages[apartmentId] != null
+                      ? Colors.green
+                      : Colors.blueGrey,
+                  side: BorderSide(
+                    color: _selectedImages[apartmentId] != null
+                        ? Colors.green
+                        : Colors.blueGrey.shade300,
+                  ),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _isLoading[apartmentId] == true
+                    ? null
+                    : () => _saveFeedback(apartmentId),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF8CB2A4),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  elevation: 0,
+                ),
+                child:
+                    const Text('Save Feedback', style: TextStyle(fontSize: 12)),
+              ),
+            ),
+          ],
+        ),
+        // Image preview (local or server)
+        _buildImagePreview(apartmentId),
+      ],
+    );
+  }
+
+  Widget _buildActionButton(
+    Apartment apartment,
+    String status,
+    bool isLoading,
+    int rating,
+  ) {
+    String buttonText;
+    Color buttonColor;
+    IconData buttonIcon;
+    VoidCallback? onPressedAction;
+    bool isButtonDisabled =
+        isLoading || (status == 'not_cleaned' && rating == 0);
+
+    switch (status) {
+      case 'in_progress':
+        buttonText = 'Finish Cleaning';
+        buttonColor = const Color(0xFFE57373);
+        buttonIcon = Icons.stop_rounded;
+        onPressedAction = () => _updateStatus(apartment.id, 'stop');
+        break;
+      case 'cleaned':
+        buttonText = 'Resume Cleaning';
+        buttonColor = const Color(0xFFF7C59F);
+        buttonIcon = Icons.replay_rounded;
+        onPressedAction = () => _updateStatus(apartment.id, 'start');
+        break;
+      default:
+        buttonText = 'Start Cleaning';
+        buttonColor = const Color(0xFF8CB2A4);
+        buttonIcon = Icons.play_arrow_rounded;
+        onPressedAction = () => _showCleaningTimePicker(apartment.id);
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: isButtonDisabled ? null : onPressedAction,
+        icon: isLoading
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white),
+              )
+            : Icon(buttonIcon, size: 18),
+        label: Text(buttonText, style: const TextStyle(fontSize: 14)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: buttonColor,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.grey.shade400,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          elevation: 0,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildApartmentCard(Apartment apartment) {
+    final String status = _cleaningStatus[apartment.id] ?? 'not_cleaned';
+    final bool isLoading = _isLoading[apartment.id] ?? false;
+    final int rating = _ratings[apartment.id] ?? 0;
+    final bool isExpanded = _expandedCards[apartment.id] ?? false;
+    final Color statColor = _statusColor(status);
+
+    return Card(
+      color: Colors.white,
+      elevation: 1,
+      shadowColor: Colors.black12,
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade100),
+      ),
+      child: Column(
+        children: [
+          // ─── Collapsed header (always visible) ───
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () {
+              setState(() {
+                _expandedCards[apartment.id] = !isExpanded;
+              });
+            },
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  // Apartment image
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: apartment.imageUrl.isNotEmpty
+                        ? NetworkImage(apartment.imageUrl)
+                        : null,
+                    child: apartment.imageUrl.isEmpty
+                        ? Icon(Icons.apartment,
+                            size: 20, color: Colors.grey.shade400)
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  // Apartment name + status
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          apartment.name,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Icon(_statusIcon(status),
+                                size: 13, color: statColor),
+                            const SizedBox(width: 4),
+                            Text(
+                              _statusLabel(status),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: statColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (rating > 0) ...[
+                              const SizedBox(width: 10),
+                              ...List.generate(
+                                5,
+                                (i) => Icon(
+                                  i < rating
+                                      ? Icons.star_rounded
+                                      : Icons.star_outline_rounded,
+                                  size: 12,
+                                  color: Colors.amber.shade600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        // Last Updated date
+                        if ((_lastRatedAts[apartment.id] ?? '').isNotEmpty &&
+                            _lastRatedAts[apartment.id] != 'Unknown')
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              'Last Updated: ${_lastRatedAts[apartment.id]}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey.shade400,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // Reset button (only when in_progress or cleaned)
+                  if (status != 'not_cleaned' && !isLoading)
+                    GestureDetector(
+                      onTap: () => _showResetConfirmation(apartment),
+                      child: Icon(Icons.refresh,
+                          size: 18, color: Colors.grey.shade400),
+                    ),
+                  const SizedBox(width: 8),
+                  // Dropdown arrow
+                  AnimatedRotation(
+                    turns: isExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(Icons.keyboard_arrow_down,
+                        size: 22, color: Colors.grey.shade400),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ─── Expanded content ───
+          AnimatedCrossFade(
+            firstChild: const SizedBox(width: double.infinity, height: 0),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Divider(color: Colors.grey.shade100, height: 1),
+                  const SizedBox(height: 12),
+
+                  // Timing row
+                  _buildTimingRow(apartment.id),
+                  const SizedBox(height: 10),
+
+                  // Last Updated
+                  Row(
+                    children: [
+                      Icon(Icons.update_rounded,
+                          size: 13, color: Colors.grey.shade400),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Last Updated: ',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                      Text(
+                        (_lastRatedAts[apartment.id] ?? '').isNotEmpty &&
+                                _lastRatedAts[apartment.id] != 'Unknown'
+                            ? _lastRatedAts[apartment.id]!
+                            : 'No rating given yet',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Star rating
+                  Row(
+                    children: [
+                      Text(
+                        "Today's Rating",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildCompactStarRating(apartment.id),
+                    ],
+                  ),
+                  if ((_lastRatedAts[apartment.id] ?? '').isNotEmpty &&
+                      _lastRatedAts[apartment.id] != 'Unknown')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.access_time,
+                              size: 12, color: Colors.grey.shade400),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Last rated: ${_lastRatedAts[apartment.id]}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Rating history
+                  _buildRatingHistorySection(apartment.id),
+
+                  // Feedback section (remarks + photo)
+                  _buildFeedbackSection(apartment.id),
+
+                  const SizedBox(height: 14),
+
+                  // Action button
+                  _buildActionButton(apartment, status, isLoading, rating),
+                ],
+              ),
+            ),
+            crossFadeState: isExpanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 250),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cleaning', style: TextStyle(color: Colors.white)),
+        title: const Text('Cleaning',
+            style: TextStyle(color: Colors.white, fontSize: 18)),
         backgroundColor: const Color(0xFF8CB2A4),
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.bar_chart_outlined, color: Colors.white),
+            icon: const Icon(Icons.bar_chart_outlined, color: Colors.white,
+                size: 22),
+            tooltip: 'View Status Details',
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -524,144 +1260,15 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _initializeStatuses,
+              color: const Color(0xFF8CB2A4),
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24.0,
+                  horizontal: 14.0,
                   vertical: 8.0,
                 ),
                 itemCount: _apartments.length,
                 itemBuilder: (context, index) {
-                  final apartment = _apartments[index];
-                  final String status =
-                      _cleaningStatus[apartment.id] ?? 'not_cleaned';
-                  final bool isLoading = _isLoading[apartment.id] ?? false;
-                  final int rating = _ratings[apartment.id] ?? 0;
-
-                  String buttonText;
-                  Color buttonColor;
-                  VoidCallback? onPressedAction;
-                  bool isButtonDisabled =
-                      isLoading || (status == 'not_cleaned' && rating == 0);
-
-                  switch (status) {
-                    case 'in_progress':
-                      buttonText = 'Finish Cleaning';
-                      buttonColor = const Color(0xFFE57373);
-                      onPressedAction =
-                          () => _updateStatus(apartment.id, 'stop');
-                      break;
-                    case 'cleaned':
-                      buttonText = 'Resume Cleaning';
-                      buttonColor = const Color(0xFFF7C59F);
-                      onPressedAction =
-                          () => _updateStatus(apartment.id, 'start');
-                      break;
-                    default:
-                      buttonText = 'Start Cleaning';
-                      buttonColor = const Color(0xFF8CB2A4);
-                      onPressedAction =
-                          () => _showCleaningTimePicker(apartment.id);
-                  }
-
-                  return Card(
-                    color: Colors.white,
-                    elevation: 2,
-                    margin: const EdgeInsets.symmetric(vertical: 12.0),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Spacer(),
-                              Expanded(
-                                flex: 3,
-                                child: Text(
-                                  apartment.name,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 1,
-                                child: (status != 'not_cleaned') && !isLoading
-                                    ? IconButton(
-                                        icon: const Icon(
-                                          Icons.refresh,
-                                          color: Colors.blueGrey,
-                                        ),
-                                        onPressed: () =>
-                                            _showResetConfirmation(apartment),
-                                      )
-                                    : const SizedBox(width: 48),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          CircleAvatar(
-                            radius: 50,
-                            backgroundColor: Colors.grey.shade200,
-                            backgroundImage: apartment.imageUrl.isNotEmpty
-                                ? NetworkImage(apartment.imageUrl)
-                                : null,
-                            child: apartment.imageUrl.isEmpty
-                                ? const Icon(
-                                    Icons.apartment,
-                                    size: 50,
-                                    color: Colors.grey,
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(height: 16),
-                          _buildStarRating(apartment.id),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Started: ${_startTimes[apartment.id] ?? 'N/A'}',
-                            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4.0),
-                            child: Text(
-                              'Finished: ${_endTimes[apartment.id] ?? 'N/A'}',
-                              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          isLoading
-                              ? const Center(child: CircularProgressIndicator())
-                              : SizedBox(
-                                  width: 220,
-                                  height: 50,
-                                  child: ElevatedButton(
-                                    onPressed:
-                                        isButtonDisabled ? null : onPressedAction,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: buttonColor,
-                                      foregroundColor: Colors.white,
-                                      disabledBackgroundColor:
-                                          Colors.grey.shade400,
-                                      textStyle: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    child: Text(buttonText),
-                                  ),
-                                ),
-                          _buildFeedbackSection(apartment.id),
-                          const SizedBox(height: 8),
-                        ],
-                      ),
-                    ),
-                  );
+                  return _buildApartmentCard(_apartments[index]);
                 },
               ),
             ),
