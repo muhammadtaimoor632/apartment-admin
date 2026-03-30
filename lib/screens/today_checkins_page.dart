@@ -14,11 +14,26 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   List<BookingCalendar> _calendars = [];
   bool _isLoading = true;
   String? _errorMessage;
+  // Track which date was last fetched to auto-refresh daily
+  DateTime? _lastFetchedDate;
 
   @override
   void initState() {
     super.initState();
     _fetchData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Auto-refresh if the date has changed since last fetch (daily refresh)
+    final today = DateTime.now();
+    if (_lastFetchedDate != null &&
+        (today.year != _lastFetchedDate!.year ||
+            today.month != _lastFetchedDate!.month ||
+            today.day != _lastFetchedDate!.day)) {
+      _fetchData();
+    }
   }
 
   Future<void> _fetchData() async {
@@ -34,6 +49,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         setState(() {
           _calendars = calendars;
           _isLoading = false;
+          _lastFetchedDate = DateTime.now();
         });
       }
     } catch (e) {
@@ -46,7 +62,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     }
   }
 
-  /// Get all events checking in today across all calendars, paired with calendar name.
+  // ─── Today's check-ins ────────────────────────────────────────────────────
+
   List<_CheckinEntry> get _todayCheckins {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -54,15 +71,68 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
 
     for (final cal in _calendars) {
       for (final event in cal.events) {
-        final startDate = DateTime(event.start.year, event.start.month, event.start.day);
+        final startDate =
+            DateTime(event.start.year, event.start.month, event.start.day);
         if (startDate.isAtSameMomentAs(today) && !event.isBlocked) {
           entries.add(_CheckinEntry(calendarName: cal.name, event: event));
+        }
+      }
+    }
+    return entries;
+  }
+
+  // ─── Today's checkouts + next guest ──────────────────────────────────────
+
+  /// Returns one entry per room that checks out today,
+  /// with the next upcoming booking for that same room attached.
+  List<_CheckoutEntry> get _todayCheckouts {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final entries = <_CheckoutEntry>[];
+
+    for (final cal in _calendars) {
+      // Group events by room name
+      final Map<String, List<BookingEvent>> byRoom = {};
+      for (final e in cal.events) {
+        if (!e.isBlocked) {
+          byRoom.putIfAbsent(e.room, () => []).add(e);
+        }
+      }
+
+      for (final roomName in byRoom.keys) {
+        final roomEvents = byRoom[roomName]!;
+        // Find events checking out today
+        for (final event in roomEvents) {
+          final endDate =
+              DateTime(event.end.year, event.end.month, event.end.day);
+          if (endDate.isAtSameMomentAs(today)) {
+            // Find the next booking for this room after today
+            final upcoming = roomEvents
+                .where((e) {
+                  final startDate =
+                      DateTime(e.start.year, e.start.month, e.start.day);
+                  return startDate.isAfter(today) ||
+                      startDate.isAtSameMomentAs(today);
+                })
+                .toList()
+              ..sort((a, b) => a.start.compareTo(b.start));
+
+            final nextBooking = upcoming.isNotEmpty ? upcoming.first : null;
+
+            entries.add(_CheckoutEntry(
+              calendarName: cal.name,
+              checkoutEvent: event,
+              nextBooking: nextBooking,
+            ));
+          }
         }
       }
     }
 
     return entries;
   }
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
 
   Color _parseColor(String hex) {
     try {
@@ -92,7 +162,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     return 'Guest';
   }
 
-  String? _getGuestField(Map<String, dynamic> formData, List<String> keywords) {
+  String? _getGuestField(
+      Map<String, dynamic> formData, List<String> keywords) {
     for (final key in formData.keys) {
       final lk = key.toLowerCase();
       for (final kw in keywords) {
@@ -104,6 +175,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     }
     return null;
   }
+
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -164,10 +237,13 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
 
   Widget _buildBody() {
     final checkins = _todayCheckins;
+    final checkouts = _todayCheckouts;
     final now = DateTime.now();
     final todayFormatted = DateFormat('EEEE, dd MMMM yyyy').format(now);
 
-    if (checkins.isEmpty) {
+    final hasAnything = checkins.isNotEmpty || checkouts.isNotEmpty;
+
+    if (!hasAnything) {
       return ListView(
         children: [
           SizedBox(
@@ -190,7 +266,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'No Check-ins Today',
+                    'All Quiet Today',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -204,7 +280,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'No guests are arriving today.',
+                    'No check-ins or check-outs today.',
                     style: TextStyle(fontSize: 14, color: Colors.grey[400]),
                   ),
                 ],
@@ -215,16 +291,10 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
       );
     }
 
-    // Group check-ins by calendar
-    final grouped = <String, List<_CheckinEntry>>{};
-    for (final entry in checkins) {
-      grouped.putIfAbsent(entry.calendarName, () => []).add(entry);
-    }
-
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
-        // Today header
+        // ─── Summary header ───────────────────────────────────────────────
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -250,7 +320,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.flight_land, color: Colors.white, size: 26),
+                child:
+                    const Icon(Icons.today, color: Colors.white, size: 26),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -267,9 +338,14 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${checkins.length} Check-in${checkins.length == 1 ? '' : 's'} Today',
+                      [
+                        if (checkins.isNotEmpty)
+                          '${checkins.length} Check-in${checkins.length == 1 ? '' : 's'}',
+                        if (checkouts.isNotEmpty)
+                          '${checkouts.length} Check-out${checkouts.length == 1 ? '' : 's'}',
+                      ].join('  ·  '),
                       style: const TextStyle(
-                        fontSize: 20,
+                        fontSize: 17,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                       ),
@@ -277,64 +353,128 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${checkins.length}',
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
             ],
           ),
         ),
         const SizedBox(height: 20),
 
-        // Grouped check-in cards
-        ...grouped.entries.map((entry) {
-          final calName = entry.key;
-          final calCheckins = entry.value;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 10),
-                child: Text(
-                  calName,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.grey[700],
+        // ─── Check-ins section ────────────────────────────────────────────
+        if (checkins.isNotEmpty) ...[
+          _sectionHeader(
+            icon: Icons.flight_land_rounded,
+            label: 'Check-ins Today',
+            count: checkins.length,
+            color: const Color(0xFF8CB2A4),
+          ),
+          const SizedBox(height: 10),
+          ...checkins.map((ci) => _buildCheckinCard(ci.event)),
+          const SizedBox(height: 20),
+        ],
+
+        // ─── Checkouts + Next Guest Prep section ─────────────────────────
+        if (checkouts.isNotEmpty) ...[
+          _sectionHeader(
+            icon: Icons.flight_takeoff_rounded,
+            label: 'Checkouts & Next Guest Prep',
+            count: checkouts.length,
+            color: const Color(0xFFE57373),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.tips_and_updates_outlined,
+                    size: 16, color: Colors.orange.shade700),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'These rooms are checking out today. The next guest\'s details are shown so cleaners can prepare accordingly.',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.orange.shade800),
                   ),
                 ),
-              ),
-              ...calCheckins.map((ci) => _buildCheckinCard(ci.event)),
-              const SizedBox(height: 12),
-            ],
-          );
-        }),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          ...checkouts.map((co) => _buildCheckoutCard(co)),
+        ],
       ],
     );
   }
+
+  // ─── Section header widget ────────────────────────────────────────────────
+
+  Widget _sectionHeader({
+    required IconData icon,
+    required String label,
+    required int count,
+    required Color color,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: color),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Colors.grey[700],
+          ),
+        ),
+        const Spacer(),
+        Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Check-in card ────────────────────────────────────────────────────────
 
   Widget _buildCheckinCard(BookingEvent event) {
     final bgColor = _parseColor(event.backgroundColor);
     final dateFormatter = DateFormat('dd MMM');
     final guestName = _getGuestName(event.formData);
-    final arrivalTime = _getGuestField(event.formData, ['arrival', 'time', 'checkin']);
-    final lockCode = _getGuestField(event.formData, ['lock', 'code', 'pin']);
+    final arrivalTime =
+        _getGuestField(event.formData, ['arrival', 'time', 'checkin']);
+    final lockCode =
+        _getGuestField(event.formData, ['lock', 'code', 'pin']);
     final email = _getGuestField(event.formData, ['email', 'mail']);
-    final phone = _getGuestField(event.formData, ['phone', 'mobile', 'tel']);
+    final phone =
+        _getGuestField(event.formData, ['phone', 'mobile', 'tel']);
 
     return GestureDetector(
-      onTap: () => _showCheckinDetail(event),
+      onTap: () => _showEventDetail(event, isCheckin: true),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
@@ -347,38 +487,32 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
               offset: const Offset(0, 3),
             ),
           ],
-          border: Border(
-            left: BorderSide(color: bgColor, width: 4),
-          ),
+          border: Border(left: BorderSide(color: bgColor, width: 4)),
         ),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top row: room name + platform badge
               Row(
                 children: [
                   Expanded(
                     child: Text(
                       event.room,
                       style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
+                          fontSize: 16, fontWeight: FontWeight.w700),
                     ),
                   ),
                   _platformBadge(event.platform),
                 ],
               ),
               const SizedBox(height: 10),
-
-              // Guest info row
               Row(
                 children: [
                   CircleAvatar(
                     radius: 18,
-                    backgroundColor: bgColor.withValues(alpha: 0.12),
+                    backgroundColor:
+                        bgColor.withValues(alpha: 0.12),
                     child: Icon(Icons.person, color: bgColor, size: 20),
                   ),
                   const SizedBox(width: 10),
@@ -389,22 +523,21 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                         Text(
                           guestName,
                           style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
+                              fontSize: 14, fontWeight: FontWeight.w600),
                         ),
                         if (email != null)
                           Text(
                             email,
-                            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.grey[500]),
                             overflow: TextOverflow.ellipsis,
                           ),
                       ],
                     ),
                   ),
-                  // Nights badge
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.grey[100],
                       borderRadius: BorderRadius.circular(10),
@@ -413,21 +546,21 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                       children: [
                         Text(
                           '${event.nights}',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                          style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800),
                         ),
                         Text(
                           'night${event.nights == 1 ? '' : 's'}',
-                          style: TextStyle(fontSize: 9, color: Colors.grey[500]),
+                          style: TextStyle(
+                              fontSize: 9, color: Colors.grey[500]),
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
-
               const SizedBox(height: 10),
-
-              // Date + details chips row
               Wrap(
                 spacing: 8,
                 runSpacing: 6,
@@ -438,11 +571,13 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                     Colors.blueGrey,
                   ),
                   if (arrivalTime != null)
-                    _infoChip(Icons.access_time, arrivalTime, const Color(0xFF8CB2A4)),
+                    _infoChip(Icons.access_time, arrivalTime,
+                        const Color(0xFF8CB2A4)),
                   if (phone != null)
                     _infoChip(Icons.phone, phone, Colors.blue),
                   if (lockCode != null)
-                    _infoChip(Icons.lock, lockCode, const Color(0xFFC62828)),
+                    _infoChip(
+                        Icons.lock, lockCode, const Color(0xFFC62828)),
                 ],
               ),
             ],
@@ -452,9 +587,310 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     );
   }
 
+  // ─── Checkout + Next Guest Prep card ─────────────────────────────────────
+
+  Widget _buildCheckoutCard(_CheckoutEntry entry) {
+    final checkoutEvent = entry.checkoutEvent;
+    final nextBooking = entry.nextBooking;
+    final bgColor = _parseColor(checkoutEvent.backgroundColor);
+    final dateFormatter = DateFormat('dd MMM');
+    final checkingOutGuest = _getGuestName(checkoutEvent.formData);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+        border: Border(
+          left: BorderSide(color: const Color(0xFFE57373), width: 4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Checkout row ──────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            checkoutEvent.room,
+                            style: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
+                              Icon(Icons.location_on_rounded,
+                                  size: 12,
+                                  color: const Color(0xFFE57373)),
+                              const SizedBox(width: 3),
+                              Flexible(
+                                child: Text(
+                                  entry.calendarName,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.grey[600],
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    _platformBadge(checkoutEvent.platform),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor:
+                          const Color(0xFFE57373).withValues(alpha: 0.12),
+                      child: const Icon(Icons.flight_takeoff_rounded,
+                          color: Color(0xFFE57373), size: 17),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$checkingOutGuest is checking out',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFE57373),
+                            ),
+                          ),
+                          Text(
+                            'Stayed ${checkoutEvent.nights} night${checkoutEvent.nights == 1 ? '' : 's'} · '
+                            '${dateFormatter.format(checkoutEvent.start)} → ${dateFormatter.format(checkoutEvent.end)}',
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey[500]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // ── Next Guest Prep ───────────────────────────────────────────
+          if (nextBooking != null) ...[
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 14),
+              height: 1,
+              color: Colors.grey.shade100,
+            ),
+            GestureDetector(
+              onTap: () => _showEventDetail(nextBooking, isCheckin: false),
+              child: Container(
+                margin: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF8CB2A4).withValues(alpha: 0.08),
+                      const Color(0xFF6D9B8C).withValues(alpha: 0.05),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: const Color(0xFF8CB2A4).withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.arrow_forward_rounded,
+                            size: 14, color: Color(0xFF8CB2A4)),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Next Guest',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF8CB2A4),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF8CB2A4)
+                                .withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Check-in: ${dateFormatter.format(nextBooking.start)}',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF4A7A6D),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _buildNextGuestInfo(nextBooking),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Tap for full details',
+                          style: TextStyle(
+                              fontSize: 10, color: Colors.grey[400]),
+                        ),
+                        const SizedBox(width: 3),
+                        Icon(Icons.chevron_right,
+                            size: 14, color: Colors.grey[400]),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ] else ...[
+            // No next booking found
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.event_busy,
+                        size: 16, color: Colors.grey[400]),
+                    const SizedBox(width: 8),
+                    Text(
+                      'No upcoming booking found for this room.',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey[500]),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNextGuestInfo(BookingEvent nextBooking) {
+    final guestName = _getGuestName(nextBooking.formData);
+    final arrivalTime = _getGuestField(
+        nextBooking.formData, ['arrival', 'time', 'checkin']);
+    final lockCode =
+        _getGuestField(nextBooking.formData, ['lock', 'code', 'pin']);
+    final email =
+        _getGuestField(nextBooking.formData, ['email', 'mail']);
+    final phone =
+        _getGuestField(nextBooking.formData, ['phone', 'mobile', 'tel']);
+    final dateFormatter = DateFormat('dd MMM');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 15,
+              backgroundColor:
+                  const Color(0xFF8CB2A4).withValues(alpha: 0.15),
+              child: const Icon(Icons.person,
+                  color: Color(0xFF8CB2A4), size: 16),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    guestName,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700),
+                  ),
+                  if (email != null)
+                    Text(
+                      email,
+                      style: TextStyle(
+                          fontSize: 11, color: Colors.grey[500]),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+            _platformBadge(nextBooking.platform),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            _infoChip(
+              Icons.calendar_today,
+              '${dateFormatter.format(nextBooking.start)} → ${dateFormatter.format(nextBooking.end)}',
+              Colors.blueGrey,
+            ),
+            _infoChip(
+              Icons.nights_stay,
+              '${nextBooking.nights} night${nextBooking.nights == 1 ? '' : 's'}',
+              Colors.blueGrey,
+            ),
+            if (arrivalTime != null)
+              _infoChip(Icons.access_time, arrivalTime,
+                  const Color(0xFF8CB2A4)),
+            if (phone != null)
+              _infoChip(Icons.phone, phone, Colors.blue),
+            if (lockCode != null)
+              _infoChip(
+                  Icons.lock, lockCode, const Color(0xFFC62828)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ─── Shared widgets ───────────────────────────────────────────────────────
+
   Widget _infoChip(IconData icon, String text, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
@@ -467,7 +903,10 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
           Flexible(
             child: Text(
               text,
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: color),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -488,21 +927,25 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+        style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: color),
       ),
     );
   }
 
-  // ─── Detail bottom sheet ──────────────────────────────────────
+  // ─── Detail bottom sheet ──────────────────────────────────────────────────
 
-  void _showCheckinDetail(BookingEvent event) {
+  void _showEventDetail(BookingEvent event, {required bool isCheckin}) {
     final dateFormatter = DateFormat('dd MMM yyyy');
 
     showModalBottomSheet(
@@ -528,6 +971,28 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                 // Close button
                 Row(
                   children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isCheckin
+                            ? const Color(0xFF8CB2A4)
+                                .withValues(alpha: 0.12)
+                            : const Color(0xFFE57373)
+                                .withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        isCheckin ? '✈️ Check-in Details' : '🔑 Next Guest Details',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isCheckin
+                              ? const Color(0xFF8CB2A4)
+                              : const Color(0xFFE57373),
+                        ),
+                      ),
+                    ),
                     const Spacer(),
                     GestureDetector(
                       onTap: () => Navigator.of(ctx).pop(),
@@ -537,73 +1002,74 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                           color: Colors.grey[200],
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(Icons.close, size: 20, color: Colors.grey[600]),
+                        child: Icon(Icons.close,
+                            size: 20, color: Colors.grey[600]),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
 
                 // Title row
                 Row(
                   children: [
                     Expanded(
-                      child: Text(event.room,
-                          style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.w800)),
+                      child: Text(
+                        event.room,
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800),
+                      ),
                     ),
                     _platformBadge(event.platform),
                   ],
                 ),
                 const SizedBox(height: 20),
 
-                // Dates row
+                // Dates
                 Row(
                   children: [
                     Expanded(
-                      child: _detailField(
-                          'Check-in', dateFormatter.format(event.start)),
-                    ),
+                        child: _detailField('Check-in',
+                            dateFormatter.format(event.start))),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _detailField(
-                          'Check-out', dateFormatter.format(event.end)),
-                    ),
+                        child: _detailField('Check-out',
+                            dateFormatter.format(event.end))),
                   ],
                 ),
                 const SizedBox(height: 12),
-
                 if (event.nights > 0)
                   _detailField('Duration',
                       '${event.nights} night${event.nights == 1 ? '' : 's'}'),
 
-                // Form data (guest details)
+                // Guest form data
                 if (event.formData.isNotEmpty) ...[
                   const SizedBox(height: 20),
-                  Text('Guest Details',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey[500])),
+                  Text(
+                    'Guest Details',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey[500]),
+                  ),
                   const SizedBox(height: 10),
                   ...event.formData.entries
                       .where((e) {
-                        if (e.value == null || e.value.toString().isEmpty) {
-                          return false;
-                        }
-                        final lk = e.key.toLowerCase().replaceAll(' ', '');
+                        if (e.value == null ||
+                            e.value.toString().isEmpty) return false;
+                        final lk = e.key
+                            .toLowerCase()
+                            .replaceAll(' ', '');
                         if (lk.contains('nonce') ||
                             lk.contains('referer') ||
                             lk.contains('token') ||
                             lk.contains('hash') ||
                             lk.contains('wphttp') ||
-                            lk.contains('fluentform') && lk.contains('nonce') ||
                             lk.contains('_wp_') ||
                             lk.contains('formid') ||
                             lk.contains('__') ||
-                            lk.startsWith('utm')) {
-                          return false;
-                        }
+                            lk.startsWith('utm')) return false;
                         return true;
                       })
                       .map((entry) {
@@ -629,13 +1095,15 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.info_outline, color: Colors.amber[700]),
+                        Icon(Icons.info_outline,
+                            color: Colors.amber[700]),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'No guest details found in Fluent Forms for this check-in date.',
+                            'No guest details found in Fluent Forms for this booking.',
                             style: TextStyle(
-                                color: Colors.amber[800], fontSize: 13),
+                                color: Colors.amber[800],
+                                fontSize: 13),
                           ),
                         ),
                       ],
@@ -651,15 +1119,19 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     );
   }
 
-  Widget _detailField(String label, String value, {bool isSecret = false}) {
+  Widget _detailField(String label, String value,
+      {bool isSecret = false}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isSecret ? const Color(0xFFFFF5F5) : const Color(0xFFF8F9FA),
+        color: isSecret
+            ? const Color(0xFFFFF5F5)
+            : const Color(0xFFF8F9FA),
         border: Border.all(
-            color:
-                isSecret ? const Color(0xFFFFCDD2) : const Color(0xFFE9ECEF)),
+            color: isSecret
+                ? const Color(0xFFFFCDD2)
+                : const Color(0xFFE9ECEF)),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -671,7 +1143,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.5,
-              color: isSecret ? const Color(0xFFC62828) : Colors.grey[500],
+              color: isSecret
+                  ? const Color(0xFFC62828)
+                  : Colors.grey[500],
             ),
           ),
           const SizedBox(height: 4),
@@ -679,7 +1153,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
             value,
             style: TextStyle(
               fontSize: isSecret ? 17 : 15,
-              fontWeight: isSecret ? FontWeight.w800 : FontWeight.w500,
+              fontWeight:
+                  isSecret ? FontWeight.w800 : FontWeight.w500,
               letterSpacing: isSecret ? 2 : 0,
               fontFamily: isSecret ? 'monospace' : null,
               color: isSecret
@@ -693,9 +1168,21 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   }
 }
 
+// ─── Data classes ─────────────────────────────────────────────────────────────
+
 class _CheckinEntry {
   final String calendarName;
   final BookingEvent event;
-
   _CheckinEntry({required this.calendarName, required this.event});
+}
+
+class _CheckoutEntry {
+  final String calendarName;
+  final BookingEvent checkoutEvent;
+  final BookingEvent? nextBooking;
+  _CheckoutEntry({
+    required this.calendarName,
+    required this.checkoutEvent,
+    this.nextBooking,
+  });
 }
