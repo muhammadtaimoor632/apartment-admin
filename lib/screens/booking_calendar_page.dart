@@ -255,81 +255,185 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     );
   }
 
-  // ─── Summary cards ──────────────────────────────────────────────
+  // ─── Summary cards (per property) ──────────────────────────────
 
   Widget _buildSummaryCards() {
-    final cal = _activeCalendar;
-    if (cal == null) return const SizedBox.shrink();
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final totalBookings =
-        cal.events.where((e) => !e.isBlocked).length;
-    final activeBookings =
-        cal.events.where((e) => e.isActive && !e.isBlocked).length;
-    final upcomingBookings = cal.events
-        .where((e) => e.start.isAfter(today) && !e.isBlocked)
-        .length;
-    final blockedDates = cal.events.where((e) => e.isBlocked).length;
+    if (_calendars.isEmpty) return const SizedBox.shrink();
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            _summaryCard('Total', '$totalBookings', Icons.event_note,
-                const Color(0xFF6C63FF)),
-            const SizedBox(width: 10),
-            _summaryCard('Active', '$activeBookings', Icons.flight_takeoff,
-                const Color(0xFF00C853)),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            _summaryCard('Upcoming', '$upcomingBookings', Icons.upcoming,
-                const Color(0xFFFF8F00)),
-            const SizedBox(width: 10),
-            _summaryCard('Blocked', '$blockedDates', Icons.block,
-                const Color(0xFF78909C)),
-          ],
-        ),
+        ..._calendars.map((cal) => _buildPropertyStatsCard(cal)),
       ],
     );
   }
 
-  Widget _summaryCard(
-      String label, String count, IconData icon, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 2))
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(height: 6),
-            Text(count,
-                style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: color)),
-            const SizedBox(height: 2),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[500])),
-          ],
-        ),
+  Widget _buildPropertyStatsCard(BookingCalendar cal) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    // Total: non-blocked bookings whose end date is strictly after today
+    // (excludes guests checking out today — they're already leaving)
+    final totalThisYear = cal.events
+        .where((e) => !e.isBlocked && e.end.isAfter(today))
+        .length;
+
+    // Upcoming bookings (non-blocked, check-in after today)
+    final upcomingCount = cal.events
+        .where((e) => !e.isBlocked && e.start.isAfter(today))
+        .length;
+
+    // Active: currently checked in (today within booking range, non-blocked)
+    final activeCount =
+        cal.events.where((e) => e.isActive && !e.isBlocked).length;
+
+    // Blocked slots
+    final blockedCount = cal.events.where((e) => e.isBlocked).length;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Property header banner
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF8CB2A4), Color(0xFF6D9B8C)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.apartment, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    cal.name,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${cal.rooms.length} room${cal.rooms.length == 1 ? '' : 's'}',
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Stats row
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+            child: Row(
+              children: [
+                _propertyStat(
+                  label: 'Total',
+                  value: '$totalThisYear',
+                  icon: Icons.event_note,
+                  color: const Color(0xFF6C63FF),
+                ),
+                _statDivider(),
+                _propertyStat(
+                  label: 'Upcoming',
+                  value: '$upcomingCount',
+                  icon: Icons.upcoming_outlined,
+                  color: const Color(0xFFFF8F00),
+                ),
+                _statDivider(),
+                _propertyStat(
+                  label: 'Active',
+                  value: '$activeCount',
+                  icon: Icons.meeting_room_outlined,
+                  color: const Color(0xFF00C853),
+                ),
+                _statDivider(),
+                _propertyStat(
+                  label: 'Blocked',
+                  value: '$blockedCount',
+                  icon: Icons.block,
+                  color: const Color(0xFF78909C),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _propertyStat({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: color,
+              height: 1.1,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[500],
+              letterSpacing: 0.3,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statDivider() {
+    return Container(
+      width: 1,
+      height: 44,
+      color: Colors.grey[200],
     );
   }
 
