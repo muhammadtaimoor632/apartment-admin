@@ -5,7 +5,7 @@ find . \
   -path '*/build/*' -prune -o \
   \( \
     -name "*.dart" \
-    -o -name "pubspec.yaml" \
+    -o -name "pubspec.yaml" \ 
     -o -name "pubspec.lock" \
     -o -name "analysis_options.yaml" \
     -o -name "Info.plist" \

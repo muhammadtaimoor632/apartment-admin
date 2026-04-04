@@ -618,67 +618,101 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Icon(Icons.history, size: 15, color: Colors.grey.shade500),
-            const SizedBox(width: 4),
-            Text(
-              'Rating History',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ...history.take(5).map((entry) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(6),
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            title: Row(
+              children: [
+                Icon(Icons.history, size: 16, color: Colors.grey.shade600),
+                const SizedBox(width: 8),
+                Text(
+                  'Previous Rating History',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                  ),
                 ),
-                child: Row(
+              ],
+            ),
+            children: history.take(3).map((entry) => Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.grey.shade100),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      entry.date,
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade600),
-                    ),
-                    const Spacer(),
                     Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: List.generate(5, (i) {
-                        return Icon(
-                          i < entry.rating
-                              ? Icons.star_rounded
-                              : Icons.star_outline_rounded,
-                          size: 14,
-                          color: Colors.amber.shade600,
-                        );
-                      }),
+                      children: [
+                        Text(
+                          entry.date,
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey.shade700),
+                        ),
+                        const Spacer(),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: List.generate(5, (i) {
+                            return Icon(
+                              i < entry.rating
+                                  ? Icons.star_rounded
+                                  : Icons.star_outline_rounded,
+                              size: 14,
+                              color: Colors.amber.shade600,
+                            );
+                          }),
+                        ),
+                      ],
                     ),
                     if (entry.remarks.isNotEmpty) ...[
-                      const SizedBox(width: 8),
-                      Tooltip(
-                        message: entry.remarks,
-                        child: Icon(Icons.comment,
-                            size: 13, color: Colors.grey.shade400),
+                      const SizedBox(height: 6),
+                      Text(
+                        entry.remarks,
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ],
+                    if (entry.imageUrl != null && entry.imageUrl!.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: () {
+                          _showFullScreenImage(
+                            NetworkImage(entry.imageUrl!),
+                            'History Photo',
+                          );
+                        },
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Image.network(
+                            entry.imageUrl!,
+                            height: 80,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
                     ],
                   ],
                 ),
               ),
-            )),
-      ],
+            )).toList(),
+          ),
+        ),
+      ),
     );
   }
 

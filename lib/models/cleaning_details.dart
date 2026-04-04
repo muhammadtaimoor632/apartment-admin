@@ -2,11 +2,13 @@ class RatingHistoryEntry {
   final int rating;
   final String date;
   final String remarks;
+  final String? imageUrl;
 
   RatingHistoryEntry({
     required this.rating,
     required this.date,
     required this.remarks,
+    this.imageUrl,
   });
 
   factory RatingHistoryEntry.fromJson(Map<String, dynamic> json) {
@@ -14,6 +16,7 @@ class RatingHistoryEntry {
       rating: json['rating'] ?? 0,
       date: json['date'] ?? '',
       remarks: json['remarks'] ?? '',
+      imageUrl: json['image_url'] ?? json['imageUrl'] ?? json['image'],
     );
   }
 }
@@ -49,8 +52,9 @@ class CleaningDetails {
 
   factory CleaningDetails.fromJson(Map<String, dynamic> json) {
     List<RatingHistoryEntry> history = [];
-    if (json['rating_history'] != null && json['rating_history'] is List) {
-      history = (json['rating_history'] as List)
+    final historyList = json['ratingHistory'] ?? json['rating_history'];
+    if (historyList != null && historyList is List) {
+      history = historyList
           .map((entry) => RatingHistoryEntry.fromJson(entry as Map<String, dynamic>))
           .toList();
     }

@@ -184,12 +184,12 @@ function aa_get_status_details() {
             $apt_id, $today
         ), ARRAY_A );
 
-        // Rating history (last 5 entries, excluding today)
+        // Rating history (last 5 entries, excluding today) - from the main cleaning status table
         $history_rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT rating, remarks, date_label
-             FROM $history_table
-             WHERE apartment_id = %s AND date_label != %s
-             ORDER BY rated_at DESC
+            "SELECT todays_rating AS rating, remarks, cleaning_image_url AS image_url, date_created AS date_label
+             FROM $table
+             WHERE apartment_id = %s AND date_created != %s AND (todays_rating > 0 OR remarks != '')
+             ORDER BY date_created DESC
              LIMIT 5",
             $apt_id, $today
         ), ARRAY_A );
@@ -197,8 +197,9 @@ function aa_get_status_details() {
         $rating_history = array_map( function( $h ) {
             return [
                 'rating'  => (int) $h['rating'],
-                'date'    => $h['date_label'],
-                'remarks' => $h['remarks'] ?? '',
+                'date'    => date('d M Y', strtotime($h['date_label'])),
+                'remarks' => current(explode('||', $h['remarks'] ?? '')) ?: $h['remarks'] ?? '',
+                'image_url' => $h['image_url'] ?? '',
             ];
         }, $history_rows );
 
