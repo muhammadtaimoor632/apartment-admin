@@ -179,12 +179,12 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
-        // Calendar selector tabs (if multiple calendars)
-        if (_calendars.length > 1) _buildCalendarSelector(),
-
-        // Summary cards row
+        // Summary cards row (per property)
         _buildSummaryCards(),
         const SizedBox(height: 16),
+
+        // Calendar selector tabs (just above the calendar grid)
+        if (_calendars.length > 1) _buildCalendarSelector(),
 
         // Calendar grid
         _buildCalendarGrid(),
@@ -331,21 +331,6 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
                     ),
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${cal.rooms.length} room${cal.rooms.length == 1 ? '' : 's'}',
-                    style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white),
                   ),
                 ),
               ],
