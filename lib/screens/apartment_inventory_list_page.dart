@@ -1,7 +1,4 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:wild_atlantic_hub/models/inventory_item.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:wild_atlantic_hub/services/scraper_service.dart';
@@ -48,7 +45,24 @@ class _ApartmentInventoryListPageState
     _loadInventory();
   }
 
-  // ── Data loading ────────────────────────────────────────────────────────────
+  void _sortItems() {
+    _inventoryItems.sort((a, b) {
+      final stockA = a.stock[widget.apartmentId] ?? 0;
+      final stockB = b.stock[widget.apartmentId] ?? 0;
+
+      final lowA = stockA <= 1;
+      final lowB = stockB <= 1;
+
+      if (lowA && !lowB) return -1;
+      if (!lowA && lowB) return 1;
+
+      if (lowA && lowB) {
+        if (stockA != stockB) return stockA.compareTo(stockB);
+      }
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+  }
+
   Future<void> _loadInventory() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
@@ -56,9 +70,8 @@ class _ApartmentInventoryListPageState
       final allItems = await ApiService.fetchInventoryForApartment(widget.apartmentId);
       if (mounted) {
         setState(() {
-          _inventoryItems = allItems
-            ..sort((a, b) =>
-                a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+          _inventoryItems = allItems;
+          _sortItems();
         });
         _scrapeMissingImages();
       }
@@ -109,7 +122,12 @@ class _ApartmentInventoryListPageState
         newStock,
       );
       if (response.statusCode == 200) {
-        if (mounted) setState(() => item.stock[widget.apartmentId] = newStock);
+        if (mounted) {
+          setState(() {
+            item.stock[widget.apartmentId] = newStock;
+            _sortItems();
+          });
+        }
       } else {
         if (mounted)
           _showSnackBar(
@@ -124,29 +142,7 @@ class _ApartmentInventoryListPageState
     }
   }
 
-  Future<void> showAddItemDialog() async {
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => const AddItemDialog(),
-    );
-    if (result != null && mounted) {
-      try {
-        await ApiService.addItem(
-          name: result['name'],
-          url: result['url'],
-          stock: result['stock'],
-          apartmentId: widget.apartmentId,
-        );
-        // If imageBase64 is present, we could optionally update the image URL, 
-        // but the backend `add` endpoint might or might not handle base64 yet.
-        // Wait, the prompt says "make sure we should be able to upload the image".
-        // Let's modify ApiService.addItem to accept base64 if needed, or wait until I see the search results.
-        await _loadInventory();
-      } catch (e) {
-        if (mounted) _showSnackBar('Error: ${e.toString()}', isError: true);
-      }
-    }
-  }
+  // _updateStock is above
 
   void _deleteItem(InventoryItem item) async {
     final int originalIndex = _inventoryItems.indexOf(item);
@@ -164,13 +160,6 @@ class _ApartmentInventoryListPageState
           isError: true,
         );
       }
-    }
-  }
-
-  Future<void> _launchURL(String urlString) async {
-    final Uri url = Uri.parse(urlString);
-    if (!await launchUrl(url)) {
-      if (mounted) _showSnackBar('Could not launch $urlString', isError: true);
     }
   }
 
@@ -194,7 +183,6 @@ class _ApartmentInventoryListPageState
         headerSliverBuilder: (_, __) => [_buildSliverAppBar()],
         body: _buildBody(),
       ),
-      floatingActionButton: _buildFAB(),
     );
   }
 
@@ -258,20 +246,6 @@ class _ApartmentInventoryListPageState
       color: Colors.white.withValues(alpha: opacity),
     ),
   );
-
-  Widget _buildFAB() {
-    return FloatingActionButton.extended(
-      onPressed: showAddItemDialog,
-      backgroundColor: _C.primaryDark,
-      foregroundColor: Colors.white,
-      elevation: 4,
-      icon: const Icon(Icons.add_rounded),
-      label: const Text(
-        'Add Item',
-        style: TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0.5),
-      ),
-    );
-  }
 
   Widget _buildBody() {
     if (_isLoading) {
@@ -375,7 +349,7 @@ class _ApartmentInventoryListPageState
         isUpdating: _isUpdatingStock[item.id] ?? false,
         onIncrement: () => _updateStock(item, 'increment'),
         onDecrement: () => _updateStock(item, 'decrement'),
-        onTap: item.url.isNotEmpty ? () => _launchURL(item.url) : null,
+        // No URL launching
       ),
     );
   }
@@ -473,7 +447,6 @@ class _InventoryItemCard extends StatelessWidget {
   final bool isUpdating;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
-  final VoidCallback? onTap;
 
   const _InventoryItemCard({
     required this.item,
@@ -482,20 +455,21 @@ class _InventoryItemCard extends StatelessWidget {
     required this.isUpdating,
     required this.onIncrement,
     required this.onDecrement,
-    this.onTap,
   });
 
   int get _stock => item.stock[apartmentId] ?? 0;
 
   Color get _stockColor {
     if (_stock == 0) return Colors.red.shade400;
-    if (_stock <= 2) return Colors.orange.shade600;
+    if (_stock == 1) return Colors.deepOrange.shade600;
+    if (_stock == 2) return Colors.orange.shade500;
     return _C.primaryDark;
   }
 
   String get _stockLabel {
     if (_stock == 0) return 'Out of Stock';
-    if (_stock <= 2) return 'Low Stock';
+    if (_stock == 1) return 'Getting out of stock';
+    if (_stock == 2) return 'Low Stock';
     return 'In Stock';
   }
 
@@ -517,19 +491,15 @@ class _InventoryItemCard extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildImage(),
-                const SizedBox(width: 14),
-                Expanded(child: _buildInfo()),
-              ],
-            ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildImage(),
+              const SizedBox(width: 14),
+              Expanded(child: _buildInfo()),
+            ],
           ),
         ),
       ),
@@ -713,319 +683,6 @@ class _InventoryItemCard extends StatelessWidget {
         onPressed: onPressed,
         constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
         padding: EdgeInsets.zero,
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Add Item Dialog
-// ─────────────────────────────────────────────────────────────────────────────
-class AddItemDialog extends StatefulWidget {
-  const AddItemDialog({super.key});
-
-  @override
-  State<AddItemDialog> createState() => _AddItemDialogState();
-}
-
-class _AddItemDialogState extends State<AddItemDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameController;
-  late final TextEditingController _urlController;
-  late final TextEditingController _stockController;
-  String? _base64Image;
-  bool _isPickingImage = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameController = TextEditingController();
-    _urlController = TextEditingController();
-    _stockController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _urlController.dispose();
-    _stockController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickImage() async {
-    setState(() => _isPickingImage = true);
-    try {
-      final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1024,
-        imageQuality: 80,
-      );
-      if (pickedFile != null) {
-        final bytes = await pickedFile.readAsBytes();
-        final ext = pickedFile.name.split('.').last.toLowerCase();
-        final mimeType = ext == 'png' ? 'image/png' : 'image/jpeg';
-        setState(() {
-          _base64Image = 'data:$mimeType;base64,${base64Encode(bytes)}';
-        });
-      }
-    } catch (_) {} finally {
-      setState(() => _isPickingImage = false);
-    }
-  }
-
-  void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      Navigator.of(context).pop({
-        'name': _nameController.text,
-        'url': _urlController.text,
-        'stock': int.parse(_stockController.text),
-        'image': _base64Image,
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: _C.primaryLight.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.add_shopping_cart_rounded,
-                      color: _C.primaryDark,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Text(
-                      'Add New Item',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.close_rounded,
-                        size: 18,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 28),
-              // Form
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    _styledField(
-                      controller: _nameController,
-                      label: 'Product Name',
-                      hint: 'e.g. Towels',
-                      icon: Icons.label_outline_rounded,
-                      validator: (v) =>
-                          (v == null || v.isEmpty) ? 'Please enter a name' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    _styledField(
-                      controller: _urlController,
-                      label: 'Product URL',
-                      hint: 'https://...',
-                      icon: Icons.link_rounded,
-                      keyboardType: TextInputType.url,
-                    ),
-                    const SizedBox(height: 16),
-                    _styledField(
-                      controller: _stockController,
-                      label: 'Initial Stock',
-                      hint: '0',
-                      icon: Icons.inventory_2_outlined,
-                      keyboardType: TextInputType.number,
-                      validator: (v) {
-                        if (v == null || v.isEmpty)
-                          return 'Please enter a stock number';
-                        if (int.tryParse(v) == null)
-                          return 'Please enter a valid number';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    // Image picker 
-                    InkWell(
-                      onTap: _pickImage,
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: _isPickingImage
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    )
-                                  : Icon(
-                                      _base64Image != null ? Icons.image : Icons.add_photo_alternate_rounded,
-                                      color: _base64Image != null ? _C.primary : Colors.grey.shade600,
-                                      size: 18,
-                                    ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Product Image',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade500,
-                                    ),
-                                  ),
-                                  Text(
-                                    _base64Image != null ? 'Image attached' : 'Tap to upload image',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: _base64Image != null ? _C.primaryDark : Color(0xFF2D3E3A),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 28),
-              // Actions
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      side: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    child: const Text(
-                      'Cancel',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _submitForm,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _C.primaryDark,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'Add Item',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      ),
-    );
-  }
-
-  Widget _styledField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      validator: validator,
-      style: const TextStyle(fontSize: 15),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(icon, color: _C.primary, size: 20),
-        filled: true,
-        fillColor: const Color(0xFFF4F7F6),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: _C.primary, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-        ),
-        labelStyle: TextStyle(color: Colors.grey.shade600, fontSize: 14),
       ),
     );
   }
