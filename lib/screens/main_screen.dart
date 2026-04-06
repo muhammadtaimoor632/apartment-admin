@@ -26,17 +26,17 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _pages = [
       Navigator(
-        key: _cleaningNavKey,
-        onGenerateRoute: (route) => MaterialPageRoute(
-          settings: route,
-          builder: (context) => const CleaningStatusPage(),
-        ),
-      ),
-      Navigator(
         key: _todayNavKey,
         onGenerateRoute: (route) => MaterialPageRoute(
           settings: route,
           builder: (context) => const TodayCheckinsPage(),
+        ),
+      ),
+      Navigator(
+        key: _cleaningNavKey,
+        onGenerateRoute: (route) => MaterialPageRoute(
+          settings: route,
+          builder: (context) => const CleaningStatusPage(),
         ),
       ),
       Navigator(
@@ -71,12 +71,12 @@ class _MainScreenState extends State<MainScreen> {
         backgroundColor: const Color(0xFF8CB2A4),
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
-            icon: Icon(Icons.checklist_rtl_outlined),
-            label: 'Cleaning',
-          ),
-          BottomNavigationBarItem(
             icon: Icon(Icons.today),
             label: 'Today',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.checklist_rtl_outlined),
+            label: 'Cleaning',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.calendar_month_outlined),
