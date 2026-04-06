@@ -186,7 +186,11 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   String? _getArrivalTime(Map<String, dynamic> formData) {
     // 1) The user specifies there is a 'datetime' field in the form.
     for (final key in formData.keys) {
-      final lk = key.toLowerCase().replaceAll(' ', '').replaceAll('-', '').replaceAll('_', '');
+      final lk = key
+          .toLowerCase()
+          .replaceAll(' ', '')
+          .replaceAll('-', '')
+          .replaceAll('_', '');
       if (lk.contains('datetime')) {
         final val = formData[key];
         if (val != null && val.toString().isNotEmpty) return val.toString();
@@ -1030,6 +1034,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      useRootNavigator: false,
+      useSafeArea: true,
       builder: (ctx) {
         bool _noteLoading = true;
         bool _noteSaving = false;
@@ -1132,101 +1138,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Dates
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _detailField(
-                            'Check-in',
-                            dateFormatter.format(event.start),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _detailField(
-                            'Check-out',
-                            dateFormatter.format(event.end),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    if (event.nights > 0)
-                      _detailField(
-                        'Duration',
-                        '${event.nights} night${event.nights == 1 ? '' : 's'}',
-                      ),
-
-                    // Guest form data
-                    if (event.formData.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      Text(
-                        'Guest Details',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      ...event.formData.entries
-                          .where((e) {
-                            if (e.value == null || e.value.toString().isEmpty)
-                              return false;
-                            final lk = e.key.toLowerCase().replaceAll(' ', '');
-                            if (lk.contains('nonce') ||
-                                lk.contains('referer') ||
-                                lk.contains('token') ||
-                                lk.contains('hash') ||
-                                lk.contains('wphttp') ||
-                                lk.contains('_wp_') ||
-                                lk.contains('formid') ||
-                                lk.contains('__') ||
-                                lk.startsWith('utm'))
-                              return false;
-                            return true;
-                          })
-                          .map((entry) {
-                            final lk = entry.key.toLowerCase();
-                            final isSecret =
-                                lk.contains('lock') ||
-                                lk.contains('code') ||
-                                lk.contains('pin');
-                            return _detailField(
-                              entry.key,
-                              entry.value.toString(),
-                              isSecret: isSecret,
-                            );
-                          }),
-                    ],
-
-                    if (event.formData.isEmpty)
-                      Container(
-                        margin: const EdgeInsets.only(top: 16),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.amber[50],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.info_outline, color: Colors.amber[700]),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'No guest details found in Fluent Forms for this booking.',
-                                style: TextStyle(
-                                  color: Colors.amber[800],
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
                     // ── Notes Section ────────────────────────────────────
-                    const SizedBox(height: 24),
                     Row(
                       children: [
                         Container(
@@ -1343,7 +1255,100 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 24),
+
+                    // Dates
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _detailField(
+                            'Check-in',
+                            dateFormatter.format(event.start),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _detailField(
+                            'Check-out',
+                            dateFormatter.format(event.end),
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 12),
+                    if (event.nights > 0)
+                      _detailField(
+                        'Duration',
+                        '${event.nights} night${event.nights == 1 ? '' : 's'}',
+                      ),
+
+                    // Guest form data
+                    if (event.formData.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      Text(
+                        'Guest Details',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ...event.formData.entries
+                          .where((e) {
+                            if (e.value == null || e.value.toString().isEmpty)
+                              return false;
+                            final lk = e.key.toLowerCase().replaceAll(' ', '');
+                            if (lk.contains('nonce') ||
+                                lk.contains('referer') ||
+                                lk.contains('token') ||
+                                lk.contains('hash') ||
+                                lk.contains('wphttp') ||
+                                lk.contains('_wp_') ||
+                                lk.contains('formid') ||
+                                lk.contains('__') ||
+                                lk.startsWith('utm'))
+                              return false;
+                            return true;
+                          })
+                          .map((entry) {
+                            final lk = entry.key.toLowerCase();
+                            final isSecret =
+                                lk.contains('lock') ||
+                                lk.contains('code') ||
+                                lk.contains('pin');
+                            return _detailField(
+                              entry.key,
+                              entry.value.toString(),
+                              isSecret: isSecret,
+                            );
+                          }),
+                    ],
+
+                    if (event.formData.isEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 16),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.amber[50],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.amber[700]),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'No guest details found in Fluent Forms for this booking.',
+                                style: TextStyle(
+                                  color: Colors.amber[800],
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),

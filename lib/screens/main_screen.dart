@@ -57,6 +57,18 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _onItemTapped(int index) {
+    if (_selectedIndex != index) {
+      final keys = [
+        _todayNavKey,
+        _cleaningNavKey,
+        _bookingsNavKey,
+        _inventoryNavKey,
+      ];
+      final currentNavKey = keys[_selectedIndex];
+      if (currentNavKey.currentState?.canPop() ?? false) {
+        currentNavKey.currentState?.pop();
+      }
+    }
     setState(() {
       _selectedIndex = index;
     });
@@ -70,10 +82,7 @@ class _MainScreenState extends State<MainScreen> {
         type: BottomNavigationBarType.fixed,
         backgroundColor: const Color(0xFF8CB2A4),
         items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.today),
-            label: 'Today',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.today), label: 'Today'),
           BottomNavigationBarItem(
             icon: Icon(Icons.checklist_rtl_outlined),
             label: 'Cleaning',

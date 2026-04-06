@@ -998,6 +998,8 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      useRootNavigator: false,
+      useSafeArea: true,
       builder: (ctx) {
         return Container(
           margin: const EdgeInsets.all(12),
@@ -1060,6 +1062,8 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      useRootNavigator: false,
+      useSafeArea: true,
       builder: (ctx) {
         bool _noteLoading = true;
         bool _noteSaving = false;
@@ -1136,6 +1140,127 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                       ],
                     ),
                     const SizedBox(height: 20),
+
+                    // ── Notes Section (real bookings only) ──────────────
+                    if (!event.isBlocked) ...[
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF8E1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.sticky_note_2_outlined,
+                              size: 16,
+                              color: Color(0xFFF9A825),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Notes',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          const Spacer(),
+                          if (_noteLoading)
+                            const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF8CB2A4),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFDE7),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFFFFEE58),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: TextField(
+                          controller: _noteCtrl,
+                          minLines: 3,
+                          maxLines: 6,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF212529),
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Add notes about this guest or booking…',
+                            hintStyle: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[400],
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.all(14),
+                          ),
+                          onChanged: (_) {},
+                          enabled: !_noteLoading,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _noteSaving || _noteLoading
+                              ? null
+                              : () async {
+                                  setSheetState(() => _noteSaving = true);
+                                  final ok = await ApiService.saveBookingNote(
+                                    event,
+                                    _noteCtrl.text.trim(),
+                                  );
+                                  if (ctx2.mounted) {
+                                    setSheetState(() => _noteSaving = false);
+                                    ScaffoldMessenger.of(ctx2).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          ok
+                                              ? 'Note saved ✓'
+                                              : 'Failed to save note',
+                                        ),
+                                        backgroundColor: ok
+                                            ? const Color(0xFF8CB2A4)
+                                            : Colors.red,
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
+                                },
+                          icon: _noteSaving
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.save_outlined, size: 18),
+                          label: Text(_noteSaving ? 'Saving…' : 'Save Note'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF8CB2A4),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
 
                     // Dates row
                     Row(
@@ -1257,127 +1382,6 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                           ],
                         ),
                       ),
-
-                    // ── Notes Section (real bookings only) ──────────────
-                    if (!event.isBlocked) ...[
-                      const SizedBox(height: 24),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF8E1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.sticky_note_2_outlined,
-                              size: 16,
-                              color: Color(0xFFF9A825),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Notes',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                          const Spacer(),
-                          if (_noteLoading)
-                            const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0xFF8CB2A4),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFFDE7),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: const Color(0xFFFFEE58),
-                            width: 1.2,
-                          ),
-                        ),
-                        child: TextField(
-                          controller: _noteCtrl,
-                          minLines: 3,
-                          maxLines: 6,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF212529),
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Add notes about this guest or booking…',
-                            hintStyle: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[400],
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.all(14),
-                          ),
-                          onChanged: (_) {},
-                          enabled: !_noteLoading,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _noteSaving || _noteLoading
-                              ? null
-                              : () async {
-                                  setSheetState(() => _noteSaving = true);
-                                  final ok = await ApiService.saveBookingNote(
-                                    event,
-                                    _noteCtrl.text.trim(),
-                                  );
-                                  if (ctx2.mounted) {
-                                    setSheetState(() => _noteSaving = false);
-                                    ScaffoldMessenger.of(ctx2).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          ok
-                                              ? 'Note saved ✓'
-                                              : 'Failed to save note',
-                                        ),
-                                        backgroundColor: ok
-                                            ? const Color(0xFF8CB2A4)
-                                            : Colors.red,
-                                        duration: const Duration(seconds: 2),
-                                      ),
-                                    );
-                                  }
-                                },
-                          icon: _noteSaving
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.save_outlined, size: 18),
-                          label: Text(_noteSaving ? 'Saving…' : 'Save Note'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF8CB2A4),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
 
                     const SizedBox(height: 12),
                   ],
