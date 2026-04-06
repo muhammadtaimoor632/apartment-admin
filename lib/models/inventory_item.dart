@@ -15,23 +15,31 @@ class InventoryItem {
     required this.apartmentId,
   });
 
-  factory InventoryItem.fromJson(Map<String, dynamic> json) {
-    // Safely parse the 'stock' field, which is now an object from the API
+  factory InventoryItem.fromJson(
+      Map<String, dynamic> json, {String? fallbackAptId}) {
+    // Safely parse the 'stock' field, handling both the old schema (map)
+    // and the new backend schema (quantity)
+    String aptId = json['apartment_id']?.toString() ??
+        json['apartmentId']?.toString() ??
+        fallbackAptId ??
+        '';
     Map<String, int> stockMap = {};
+
     if (json['stock'] is Map) {
       json['stock'].forEach((key, value) {
-        // Ensure values are integers, default to 0 if parsing fails
-        stockMap[key] = int.tryParse(value.toString()) ?? 0;
+        stockMap[key.toString()] = int.tryParse(value.toString()) ?? 0;
       });
+    } else if (json['quantity'] != null) {
+      stockMap[aptId] = int.tryParse(json['quantity'].toString()) ?? 0;
     }
 
     return InventoryItem(
-      id: json['id'] ?? 0,
-      name: json['name'] ?? 'No Name',
-      url: json['url'] ?? '',
-      stock: stockMap, // Assign the parsed map
-      imageUrl: json['image_url'] ?? '',
-      apartmentId: json['apartmentId'] ?? '',
+      id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+      name: json['item_name'] ?? json['name'] ?? 'No Name',
+      url: json['shop_url'] ?? json['url'] ?? '',
+      stock: stockMap,
+      imageUrl: json['item_image_url'] ?? json['image_url'] ?? '',
+      apartmentId: aptId,
     );
   }
 }

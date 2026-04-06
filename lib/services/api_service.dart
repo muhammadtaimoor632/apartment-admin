@@ -101,33 +101,32 @@ class ApiService {
 
   // --- Inventory Endpoints ---
 
-  static Future<List<InventoryItem>> fetchInventoryItems() async {
-    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/inventory/items');
+  static Future<List<InventoryItem>> fetchInventoryForApartment(String apartmentId) async {
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/inventory/$apartmentId');
     final response = await http.get(uri, headers: _authHeaders);
     if (response.statusCode == 200) {
       final List<dynamic> decodedData = json.decode(response.body);
-      return decodedData.map((item) => InventoryItem.fromJson(item)).toList();
+      return decodedData
+          .map((item) => InventoryItem.fromJson(item, fallbackAptId: apartmentId))
+          .toList();
     } else {
-      throw Exception('Failed to load inventory: ${response.reasonPhrase}');
+      throw Exception('Failed to load inventory for $apartmentId: ${response.reasonPhrase}');
     }
   }
 
   static Future<http.Response> updateStock(
     int itemId,
-    String action,
-    String apartmentId,
+    int quantity,
   ) {
-    // Now requires apartmentId
     final uri = Uri.parse(
-      '$_wordpressUrl$_apiNamespace/inventory/update-stock',
+      '$_wordpressUrl$_apiNamespace/inventory/update',
     );
     return http.post(
       uri,
       headers: _authHeaders,
       body: json.encode({
-        'item_id': itemId,
-        'action': action,
-        'apartmentId': apartmentId, // Send apartmentId in the request
+        'id': itemId,
+        'quantity': quantity,
       }),
     );
   }
@@ -148,20 +147,22 @@ class ApiService {
     required String url,
     required int stock,
     required String apartmentId,
+    String? base64Image,
   }) async {
     final uri = Uri.parse('$_wordpressUrl$_apiNamespace/inventory/add');
     final response = await http.post(
       uri,
       headers: _authHeaders,
       body: json.encode({
-        'name': name,
-        'url': url,
-        // Send stock as a map for the specific apartment
-        'stock': {apartmentId: stock},
-        'apartmentId': apartmentId,
+        'apartment_id': apartmentId,
+        'item_name': name,
+        'item_image_url': base64Image ?? '', // They can parse it as a URL or a base64 string
+        'image': base64Image ?? '', // Also sending 'image' matching other upload endpoints just in case
+        'shop_url': url,
+        'quantity': stock,
       }),
     );
-    if (response.statusCode == 201) {
+    if (response.statusCode == 201 || response.statusCode == 200) {
       return InventoryItem.fromJson(json.decode(response.body));
     } else {
       final responseBody = json.decode(response.body);
@@ -175,7 +176,7 @@ class ApiService {
     return http.post(
       uri,
       headers: _authHeaders,
-      body: json.encode({'item_id': itemId}),
+      body: json.encode({'id': itemId}),
     );
   }
 

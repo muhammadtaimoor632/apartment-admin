@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wild_atlantic_hub/models/cleaning_details.dart';
-import 'package:wild_atlantic_hub/models/inventory_item.dart';
+
 import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:wild_atlantic_hub/screens/apartment_inventory_list_page.dart';
 
@@ -12,7 +12,7 @@ class ProductInventoryPage extends StatefulWidget {
 }
 
 class _ProductInventoryPageState extends State<ProductInventoryPage> {
-  late Future<(List<CleaningDetails>, List<InventoryItem>)> _dataFuture;
+  late Future<(List<CleaningDetails>, Map<String, int>)> _dataFuture;
 
   // Brand colour palette
   static const Color _primary = Color(0xFF8CB2A4);
@@ -26,15 +26,23 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
     _dataFuture = _fetchData();
   }
 
-  Future<(List<CleaningDetails>, List<InventoryItem>)> _fetchData() async {
-    final results = await Future.wait([
-      ApiService.fetchCleaningDetails(),
-      ApiService.fetchInventoryItems(),
-    ]);
-    return (
-      results[0] as List<CleaningDetails>,
-      results[1] as List<InventoryItem>,
+  Future<(List<CleaningDetails>, Map<String, int>)> _fetchData() async {
+    final apartments = await ApiService.fetchCleaningDetails();
+    
+    // Fetch individual inventory item counts per apartment
+    final inventoryCounts = <String, int>{};
+    await Future.wait(
+      apartments.map((apt) async {
+        try {
+          final items = await ApiService.fetchInventoryForApartment(apt.id);
+          inventoryCounts[apt.id] = items.length;
+        } catch (_) {
+          inventoryCounts[apt.id] = 0;
+        }
+      }),
     );
+    
+    return (apartments, inventoryCounts);
   }
 
   void _navigateToInventoryList(
@@ -56,7 +64,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
-      body: FutureBuilder<(List<CleaningDetails>, List<InventoryItem>)>(
+      body: FutureBuilder<(List<CleaningDetails>, Map<String, int>)>(
         future: _dataFuture,
         builder: (context, snapshot) {
           return NestedScrollView(
@@ -157,7 +165,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
   }
 
   Widget _buildBody(
-      AsyncSnapshot<(List<CleaningDetails>, List<InventoryItem>)> snapshot) {
+      AsyncSnapshot<(List<CleaningDetails>, Map<String, int>)> snapshot) {
     if (snapshot.connectionState == ConnectionState.waiting) {
       return const Center(
         child: CircularProgressIndicator(color: _primary),
@@ -189,7 +197,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
     }
 
     final apartments = snapshot.data!.$1;
-    final allInventoryItems = snapshot.data!.$2;
+    final inventoryCounts = snapshot.data!.$2;
 
     return RefreshIndicator(
       color: _primary,
@@ -210,9 +218,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
         itemCount: apartments.length,
         itemBuilder: (context, index) {
           final apartment = apartments[index];
-          final inventoryCount = allInventoryItems
-              .where((item) => item.stock.containsKey(apartment.id))
-              .length;
+          final inventoryCount = inventoryCounts[apartment.id] ?? 0;
           return _ApartmentInventoryCard(
             apartment: apartment,
             inventoryCount: inventoryCount,
