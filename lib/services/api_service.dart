@@ -27,10 +27,7 @@ class ApiService {
     return http.post(
       uri,
       headers: _authHeaders,
-      body: json.encode({
-        'apartment_id': apartmentId,
-        'todays_rating': rating,
-      }),
+      body: json.encode({'apartment_id': apartmentId, 'todays_rating': rating}),
     );
   }
 
@@ -101,33 +98,33 @@ class ApiService {
 
   // --- Inventory Endpoints ---
 
-  static Future<List<InventoryItem>> fetchInventoryForApartment(String apartmentId) async {
-    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/inventory/$apartmentId');
+  static Future<List<InventoryItem>> fetchInventoryForApartment(
+    String apartmentId,
+  ) async {
+    final uri = Uri.parse(
+      '$_wordpressUrl$_apiNamespace/inventory/$apartmentId',
+    );
     final response = await http.get(uri, headers: _authHeaders);
     if (response.statusCode == 200) {
       final List<dynamic> decodedData = json.decode(response.body);
       return decodedData
-          .map((item) => InventoryItem.fromJson(item, fallbackAptId: apartmentId))
+          .map(
+            (item) => InventoryItem.fromJson(item, fallbackAptId: apartmentId),
+          )
           .toList();
     } else {
-      throw Exception('Failed to load inventory for $apartmentId: ${response.reasonPhrase}');
+      throw Exception(
+        'Failed to load inventory for $apartmentId: ${response.reasonPhrase}',
+      );
     }
   }
 
-  static Future<http.Response> updateStock(
-    int itemId,
-    int quantity,
-  ) {
-    final uri = Uri.parse(
-      '$_wordpressUrl$_apiNamespace/inventory/update',
-    );
+  static Future<http.Response> updateStock(int itemId, int quantity) {
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/inventory/update');
     return http.post(
       uri,
       headers: _authHeaders,
-      body: json.encode({
-        'id': itemId,
-        'quantity': quantity,
-      }),
+      body: json.encode({'id': itemId, 'quantity': quantity}),
     );
   }
 
@@ -156,8 +153,11 @@ class ApiService {
       body: json.encode({
         'apartment_id': apartmentId,
         'item_name': name,
-        'item_image_url': base64Image ?? '', // They can parse it as a URL or a base64 string
-        'image': base64Image ?? '', // Also sending 'image' matching other upload endpoints just in case
+        'item_image_url':
+            base64Image ?? '', // They can parse it as a URL or a base64 string
+        'image':
+            base64Image ??
+            '', // Also sending 'image' matching other upload endpoints just in case
         'shop_url': url,
         'quantity': stock,
       }),
@@ -188,24 +188,57 @@ class ApiService {
     if (response.statusCode == 200) {
       final List<dynamic> decodedData = json.decode(response.body);
       return decodedData
-          .map((data) =>
-              BookingCalendar.fromJson(data as Map<String, dynamic>))
+          .map((data) => BookingCalendar.fromJson(data as Map<String, dynamic>))
           .toList();
     } else {
       throw Exception(
-          'Failed to load booking calendars: ${response.reasonPhrase}');
+        'Failed to load booking calendars: ${response.reasonPhrase}',
+      );
     }
   }
 
   static Future<BookingCalendar> refreshBookingCalendar(String calId) async {
-    final uri = Uri.parse('$_wordpressUrl/wp-json/cbc/v1/calendars/$calId/refresh');
+    final uri = Uri.parse(
+      '$_wordpressUrl/wp-json/cbc/v1/calendars/$calId/refresh',
+    );
     final response = await http.post(uri, headers: _authHeaders);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       return BookingCalendar.fromJson(data as Map<String, dynamic>);
     } else {
-      throw Exception(
-          'Failed to refresh calendar: ${response.reasonPhrase}');
+      throw Exception('Failed to refresh calendar: ${response.reasonPhrase}');
     }
+  }
+
+  // --- Booking Notes Endpoints ---
+
+  /// Returns a stable key for a booking, used as the server-side note identifier.
+  static String bookingKey(BookingEvent event) {
+    final date =
+        '${event.start.year}-${event.start.month.toString().padLeft(2, '0')}-${event.start.day.toString().padLeft(2, '0')}';
+    return '${event.room}|$date';
+  }
+
+  static Future<String> fetchBookingNote(BookingEvent event) async {
+    final key = Uri.encodeComponent(bookingKey(event));
+    final uri = Uri.parse(
+      '$_wordpressUrl$_apiNamespace/booking-notes/get?booking_key=$key',
+    );
+    final response = await http.get(uri, headers: _authHeaders);
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return (data['note'] ?? '') as String;
+    }
+    return '';
+  }
+
+  static Future<bool> saveBookingNote(BookingEvent event, String note) async {
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/booking-notes/save');
+    final response = await http.post(
+      uri,
+      headers: _authHeaders,
+      body: json.encode({'booking_key': bookingKey(event), 'note': note}),
+    );
+    return response.statusCode == 200;
   }
 }

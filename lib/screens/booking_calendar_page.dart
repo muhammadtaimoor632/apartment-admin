@@ -99,8 +99,7 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F9),
       appBar: AppBar(
-        title:
-            const Text('Bookings', style: TextStyle(color: Colors.white)),
+        title: const Text('Bookings', style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF8CB2A4),
         actions: [
           IconButton(
@@ -112,13 +111,11 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? _buildErrorState()
-              : RefreshIndicator(
-                  onRefresh: _fetchCalendars,
-                  child: _calendars.isEmpty
-                      ? _buildEmptyState()
-                      : _buildBody(),
-                ),
+          ? _buildErrorState()
+          : RefreshIndicator(
+              onRefresh: _fetchCalendars,
+              child: _calendars.isEmpty ? _buildEmptyState() : _buildBody(),
+            ),
     );
   }
 
@@ -145,7 +142,8 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                 backgroundColor: const Color(0xFF8CB2A4),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
@@ -165,8 +163,10 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
               children: [
                 Icon(Icons.calendar_today, size: 64, color: Colors.grey[400]),
                 const SizedBox(height: 16),
-                Text('No calendars found',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+                Text(
+                  'No calendars found',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                ),
               ],
             ),
           ),
@@ -211,9 +211,10 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 2))
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Padding(
@@ -228,8 +229,10 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                 onTap: () => setState(() => _selectedCalendarIndex = idx),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? const Color(0xFF8CB2A4)
@@ -241,8 +244,9 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight:
-                          isSelected ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                       color: isSelected ? Colors.white : Colors.grey[600],
                     ),
                   ),
@@ -262,9 +266,7 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ..._calendars.map((cal) => _buildPropertyStatsCard(cal)),
-      ],
+      children: [..._calendars.map((cal) => _buildPropertyStatsCard(cal))],
     );
   }
 
@@ -283,8 +285,9 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
         .length;
 
     // Active: currently checked in (today within booking range, non-blocked)
-    final activeCount =
-        cal.events.where((e) => e.isActive && !e.isBlocked).length;
+    final activeCount = cal.events
+        .where((e) => e.isActive && !e.isBlocked)
+        .length;
 
     // Blocked slots
     final blockedCount = cal.events.where((e) => e.isBlocked).length;
@@ -415,13 +418,8 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
   }
 
   Widget _statDivider() {
-    return Container(
-      width: 1,
-      height: 44,
-      color: Colors.grey[200],
-    );
+    return Container(width: 1, height: 44, color: Colors.grey[200]);
   }
-
 
   // ─── Calendar grid ──────────────────────────────────────────────
 
@@ -438,17 +436,17 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 3))
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
         ],
       ),
       child: Column(
         children: [
           // Header with month navigation
           Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -458,9 +456,13 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                     _currentMonth = DateTime(year, month - 1, 1);
                   }),
                 ),
-                Text(monthLabel,
-                    style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w700)),
+                Text(
+                  monthLabel,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right),
                   onPressed: () => setState(() {
@@ -476,15 +478,20 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
               children: ['M', 'T', 'W', 'T', 'F', 'S', 'S']
-                  .map((d) => Expanded(
-                        child: Center(
-                          child: Text(d,
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.grey[400])),
+                  .map(
+                    (d) => Expanded(
+                      child: Center(
+                        child: Text(
+                          d,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey[400],
+                          ),
                         ),
-                      ))
+                      ),
+                    ),
+                  )
                   .toList(),
             ),
           ),
@@ -500,8 +507,7 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     );
   }
 
-  Widget _buildDayGrid(
-      int daysInMonth, int firstWeekday, int year, int month) {
+  Widget _buildDayGrid(int daysInMonth, int firstWeekday, int year, int month) {
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
     final rows = <Widget>[];
@@ -519,64 +525,68 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
           final events = _eventsForDate(date);
           final isToday = date == todayDate;
 
-          cells.add(Expanded(
-            child: GestureDetector(
-              onTap: events.isNotEmpty
-                  ? () => _showDayEventsSheet(date, events)
-                  : null,
-              child: Container(
-                height: 42,
-                margin: const EdgeInsets.all(1.5),
-                decoration: BoxDecoration(
-                  color: isToday
-                      ? const Color(0xFF8CB2A4).withValues(alpha: 0.15)
-                      : null,
-                  borderRadius: BorderRadius.circular(8),
-                  border: isToday
-                      ? Border.all(
-                          color: const Color(0xFF8CB2A4), width: 1.5)
-                      : null,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      '$dayCounter',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight:
-                            isToday ? FontWeight.w800 : FontWeight.w500,
-                        color: isToday
-                            ? const Color(0xFF8CB2A4)
-                            : Colors.grey[800],
+          cells.add(
+            Expanded(
+              child: GestureDetector(
+                onTap: events.isNotEmpty
+                    ? () => _showDayEventsSheet(date, events)
+                    : null,
+                child: Container(
+                  height: 42,
+                  margin: const EdgeInsets.all(1.5),
+                  decoration: BoxDecoration(
+                    color: isToday
+                        ? const Color(0xFF8CB2A4).withValues(alpha: 0.15)
+                        : null,
+                    borderRadius: BorderRadius.circular(8),
+                    border: isToday
+                        ? Border.all(color: const Color(0xFF8CB2A4), width: 1.5)
+                        : null,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '$dayCounter',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isToday
+                              ? FontWeight.w800
+                              : FontWeight.w500,
+                          color: isToday
+                              ? const Color(0xFF8CB2A4)
+                              : Colors.grey[800],
+                        ),
                       ),
-                    ),
-                    if (events.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: events
-                              .take(3)
-                              .map((e) => Container(
+                      if (events.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: events
+                                .take(3)
+                                .map(
+                                  (e) => Container(
                                     width: 6,
                                     height: 6,
                                     margin: const EdgeInsets.symmetric(
-                                        horizontal: 1),
+                                      horizontal: 1,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color:
-                                          _parseColor(e.backgroundColor),
+                                      color: _parseColor(e.backgroundColor),
                                       shape: BoxShape.circle,
                                     ),
-                                  ))
-                              .toList(),
+                                  ),
+                                )
+                                .toList(),
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ));
+          );
           dayCounter++;
         }
       }
@@ -598,19 +608,23 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2))
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Rooms',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey[500])),
+          Text(
+            'Rooms',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey[500],
+            ),
+          ),
           const SizedBox(height: 10),
           Wrap(
             spacing: 14,
@@ -624,13 +638,18 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(3)),
+                      color: color,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
                   ),
                   const SizedBox(width: 6),
-                  Text(room.name,
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w500)),
+                  Text(
+                    room.name,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ],
               );
             }).toList(),
@@ -654,7 +673,7 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     // Show only current + future events
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    
+
     final relevantEvents = events.where((e) {
       final endDate = DateTime(e.end.year, e.end.month, e.end.day);
       return endDate.isAfter(today);
@@ -723,7 +742,10 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(10),
@@ -745,22 +767,27 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
             const SizedBox(height: 10),
         ],
         if (currentlyHosting.isNotEmpty) ...[
-          Text('Currently Hosting',
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey[700])),
+          Text(
+            'Currently Hosting',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey[700],
+            ),
+          ),
           const SizedBox(height: 10),
           ...currentlyHosting.map((event) => _buildEventCard(event)),
-          if (upcomingBookings.isNotEmpty)
-            const SizedBox(height: 10),
+          if (upcomingBookings.isNotEmpty) const SizedBox(height: 10),
         ],
         if (upcomingBookings.isNotEmpty) ...[
-          Text('Upcoming Booking',
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey[700])),
+          Text(
+            'Upcoming Booking',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey[700],
+            ),
+          ),
           const SizedBox(height: 10),
           ...upcomingBookings.map((event) => _buildEventCard(event)),
         ],
@@ -782,13 +809,12 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
           ],
-          border: Border(
-            left: BorderSide(color: bgColor, width: 4),
-          ),
+          border: Border(left: BorderSide(color: bgColor, width: 4)),
         ),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -797,8 +823,7 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
               // Date badge
               Container(
                 width: 48,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 decoration: BoxDecoration(
                   color: bgColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
@@ -808,16 +833,18 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                     Text(
                       DateFormat('dd').format(event.start),
                       style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: bgColor),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: bgColor,
+                      ),
                     ),
                     Text(
                       DateFormat('MMM').format(event.start),
                       style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: bgColor),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: bgColor,
+                      ),
                     ),
                   ],
                 ),
@@ -832,7 +859,9 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                     Text(
                       event.room,
                       style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w700),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
@@ -845,7 +874,9 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                         Text(
                           '${dateFormatter.format(event.start)} → ${dateFormatter.format(event.end)}',
                           style: TextStyle(
-                              fontSize: 11, color: Colors.grey[500]),
+                            fontSize: 11,
+                            color: Colors.grey[500],
+                          ),
                         ),
                       ],
                     ),
@@ -854,13 +885,19 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                         padding: const EdgeInsets.only(top: 5),
                         child: Row(
                           children: [
-                            Icon(Icons.person, size: 13, color: Colors.grey[400]),
+                            Icon(
+                              Icons.person,
+                              size: 13,
+                              color: Colors.grey[400],
+                            ),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
                                 _getGuestName(event.formData),
                                 style: TextStyle(
-                                    fontSize: 11, color: Colors.grey[600]),
+                                  fontSize: 11,
+                                  color: Colors.grey[600],
+                                ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -876,20 +913,27 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
               // Nights badge
               if (!isBlocked)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.grey[100],
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Column(
                     children: [
-                      Text('${event.nights}',
-                          style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w800)),
-                      Text('night${event.nights == 1 ? '' : 's'}',
-                          style: TextStyle(
-                              fontSize: 9, color: Colors.grey[500])),
+                      Text(
+                        '${event.nights}',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        'night${event.nights == 1 ? '' : 's'}',
+                        style: TextStyle(fontSize: 9, color: Colors.grey[500]),
+                      ),
                     ],
                   ),
                 ),
@@ -923,9 +967,14 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
     );
   }
 
@@ -979,7 +1028,11 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                         color: Colors.grey[200],
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.close, size: 20, color: Colors.grey[600]),
+                      child: Icon(
+                        Icons.close,
+                        size: 20,
+                        color: Colors.grey[600],
+                      ),
                     ),
                   ),
                 ],
@@ -988,11 +1041,14 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
               Text(
                 DateFormat('EEEE, dd MMMM yyyy').format(date),
                 style: const TextStyle(
-                    fontSize: 17, fontWeight: FontWeight.w700),
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-              Text('${events.length} booking${events.length == 1 ? '' : 's'}',
-                  style:
-                      TextStyle(fontSize: 13, color: Colors.grey[500])),
+              Text(
+                '${events.length} booking${events.length == 1 ? '' : 's'}',
+                style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+              ),
               const SizedBox(height: 16),
               ...events.map((e) => _buildEventCard(e)),
             ],
@@ -1002,7 +1058,7 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     );
   }
 
-  // ─── Event detail bottom sheet ──────────────────────────────────
+  // ─── Event detail bottom sheet ────────────────────────────────
 
   void _showEventDetail(BookingEvent event) {
     final dateFormatter = DateFormat('dd MMM yyyy');
@@ -1012,161 +1068,330 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
-        return Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.85,
-          ),
-          margin: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Close button
-                Row(
+        bool _noteLoading = true;
+        bool _noteSaving = false;
+        final TextEditingController _noteCtrl = TextEditingController();
+
+        return StatefulBuilder(
+          builder: (ctx2, setSheetState) {
+            if (_noteLoading && !event.isBlocked) {
+              ApiService.fetchBookingNote(event).then((n) {
+                if (ctx2.mounted) {
+                  setSheetState(() {
+                    _noteCtrl.text = n;
+                    _noteLoading = false;
+                  });
+                }
+              });
+            } else if (event.isBlocked && _noteLoading) {
+              Future.microtask(() {
+                if (ctx2.mounted) setSheetState(() => _noteLoading = false);
+              });
+            }
+
+            return Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.9,
+              ),
+              margin: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () => Navigator.of(ctx).pop(),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.close, size: 20, color: Colors.grey[600]),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // Title row
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(event.room,
-                          style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.w800)),
-                    ),
-                    _platformBadge(event.platform, event.isBlocked),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                // Dates row
-                Row(
-                  children: [
-                    Expanded(
-                      child: _detailField(
-                          'Check-in', dateFormatter.format(event.start)),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _detailField(
-                          'Check-out', dateFormatter.format(event.end)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                if (!event.isBlocked && event.nights > 0)
-                  _detailField('Duration', '${event.nights} night${event.nights == 1 ? '' : 's'}'),
-
-                if (event.isBlocked)
-                  Container(
-                    margin: const EdgeInsets.only(top: 16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
+                    // Close button
+                    Row(
                       children: [
-                        Icon(Icons.block, color: Colors.grey[500]),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'This slot is manually blocked and not available for booking.',
-                            style: TextStyle(
-                                color: Colors.grey[600], fontSize: 14),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => Navigator.of(ctx2).pop(),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.close,
+                              size: 20,
+                              color: Colors.grey[600],
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 8),
 
-                // Form data (guest details)
-                if (!event.isBlocked && event.formData.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  Text('Guest Details',
-                      style: TextStyle(
+                    // Title row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            event.room,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        _platformBadge(event.platform, event.isBlocked),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Dates row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _detailField(
+                            'Check-in',
+                            dateFormatter.format(event.start),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _detailField(
+                            'Check-out',
+                            dateFormatter.format(event.end),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    if (!event.isBlocked && event.nights > 0)
+                      _detailField(
+                        'Duration',
+                        '${event.nights} night${event.nights == 1 ? '' : 's'}',
+                      ),
+
+                    if (event.isBlocked)
+                      Container(
+                        margin: const EdgeInsets.only(top: 16),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.block, color: Colors.grey[500]),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'This slot is manually blocked and not available for booking.',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    // Form data (guest details)
+                    if (!event.isBlocked && event.formData.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      Text(
+                        'Guest Details',
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: Colors.grey[500])),
-                  const SizedBox(height: 10),
-                  ...event.formData.entries
-                      .where((e) {
-                        if (e.value == null || e.value.toString().isEmpty) return false;
-                        final lk = e.key.toLowerCase().replaceAll(' ', '');
-                        // Filter out internal/system fields
-                        if (lk.contains('nonce') ||
-                            lk.contains('referer') ||
-                            lk.contains('token') ||
-                            lk.contains('hash') ||
-                            lk.contains('wphttp') ||
-                            lk.contains('fluentform') && lk.contains('nonce') ||
-                            lk.contains('_wp_') ||
-                            lk.contains('formid') ||
-                            lk.contains('__') ||
-                            lk.startsWith('utm')) return false;
-                        return true;
-                      })
-                      .map((entry) {
-                    final lk = entry.key.toLowerCase();
-                    final isSecret = lk.contains('lock') ||
-                        lk.contains('code') ||
-                        lk.contains('pin');
-                    return _detailField(
-                      entry.key,
-                      entry.value.toString(),
-                      isSecret: isSecret,
-                    );
-                  }),
-                ],
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ...event.formData.entries
+                          .where((e) {
+                            if (e.value == null || e.value.toString().isEmpty)
+                              return false;
+                            final lk = e.key.toLowerCase().replaceAll(' ', '');
+                            if (lk.contains('nonce') ||
+                                lk.contains('referer') ||
+                                lk.contains('token') ||
+                                lk.contains('hash') ||
+                                lk.contains('wphttp') ||
+                                lk.contains('fluentform') &&
+                                    lk.contains('nonce') ||
+                                lk.contains('_wp_') ||
+                                lk.contains('formid') ||
+                                lk.contains('__') ||
+                                lk.startsWith('utm'))
+                              return false;
+                            return true;
+                          })
+                          .map((entry) {
+                            final lk = entry.key.toLowerCase();
+                            final isSecret =
+                                lk.contains('lock') ||
+                                lk.contains('code') ||
+                                lk.contains('pin');
+                            return _detailField(
+                              entry.key,
+                              entry.value.toString(),
+                              isSecret: isSecret,
+                            );
+                          }),
+                    ],
 
-                if (!event.isBlocked && event.formData.isEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(top: 16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.amber[50],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.amber[700]),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'No guest details found in Fluent Forms for this check-in date.',
+                    if (!event.isBlocked && event.formData.isEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 16),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.amber[50],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.amber[700]),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'No guest details found in Fluent Forms for this check-in date.',
+                                style: TextStyle(
+                                  color: Colors.amber[800],
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    // ── Notes Section (real bookings only) ──────────────
+                    if (!event.isBlocked) ...[
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF8E1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.sticky_note_2_outlined,
+                              size: 16,
+                              color: Color(0xFFF9A825),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Notes',
                             style: TextStyle(
-                                color: Colors.amber[800], fontSize: 13),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          const Spacer(),
+                          if (_noteLoading)
+                            const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF8CB2A4),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFDE7),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFFFFEE58),
+                            width: 1.2,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                        child: TextField(
+                          controller: _noteCtrl,
+                          minLines: 3,
+                          maxLines: 6,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF212529),
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Add notes about this guest or booking…',
+                            hintStyle: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[400],
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.all(14),
+                          ),
+                          onChanged: (_) {},
+                          enabled: !_noteLoading,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _noteSaving || _noteLoading
+                              ? null
+                              : () async {
+                                  setSheetState(() => _noteSaving = true);
+                                  final ok = await ApiService.saveBookingNote(
+                                    event,
+                                    _noteCtrl.text.trim(),
+                                  );
+                                  if (ctx2.mounted) {
+                                    setSheetState(() => _noteSaving = false);
+                                    ScaffoldMessenger.of(ctx2).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          ok
+                                              ? 'Note saved ✓'
+                                              : 'Failed to save note',
+                                        ),
+                                        backgroundColor: ok
+                                            ? const Color(0xFF8CB2A4)
+                                            : Colors.red,
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
+                                },
+                          icon: _noteSaving
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.save_outlined, size: 18),
+                          label: Text(_noteSaving ? 'Saving…' : 'Save Note'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF8CB2A4),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
 
-                const SizedBox(height: 12),
-              ],
-            ),
-          ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -1179,8 +1404,8 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
       decoration: BoxDecoration(
         color: isSecret ? const Color(0xFFFFF5F5) : const Color(0xFFF8F9FA),
         border: Border.all(
-            color:
-                isSecret ? const Color(0xFFFFCDD2) : const Color(0xFFE9ECEF)),
+          color: isSecret ? const Color(0xFFFFCDD2) : const Color(0xFFE9ECEF),
+        ),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(

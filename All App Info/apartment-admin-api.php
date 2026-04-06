@@ -131,6 +131,19 @@ function aa_register_routes() {
         'permission_callback' => 'aa_check_auth',
     ] );
 
+    // Booking Notes Routes
+    register_rest_route( $ns, '/booking-notes/get', [
+        'methods'             => 'GET',
+        'callback'            => 'aa_get_booking_note',
+        'permission_callback' => 'aa_check_auth',
+    ] );
+
+    register_rest_route( $ns, '/booking-notes/save', [
+        'methods'             => 'POST',
+        'callback'            => 'aa_save_booking_note',
+        'permission_callback' => 'aa_check_auth',
+    ] );
+
     // NEW Routes: Inventory Management
     register_rest_route( $ns, '/inventory/all', [
         'methods'             => 'GET',
@@ -465,6 +478,34 @@ function aa_delete_inventory_rest( WP_REST_Request $request ) {
     if ( ! $id ) return new WP_Error( 'missing_param', 'item_id is required.', [ 'status' => 400 ] );
     $wpdb->delete( $table, [ 'id' => $id ] );
     return rest_ensure_response( [ 'success' => true ] );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5b. BOOKING NOTES CALLBACKS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function aa_get_booking_note( WP_REST_Request $request ) {
+    $booking_key = sanitize_text_field( $request->get_param( 'booking_key' ) );
+    if ( empty( $booking_key ) ) return new WP_Error( 'missing_param', 'booking_key is required.', [ 'status' => 400 ] );
+    $all_notes = get_option( 'aa_booking_notes', [] );
+    if ( ! is_array( $all_notes ) ) $all_notes = [];
+    $note = $all_notes[ $booking_key ] ?? '';
+    return rest_ensure_response( [ 'booking_key' => $booking_key, 'note' => $note ] );
+}
+
+function aa_save_booking_note( WP_REST_Request $request ) {
+    $booking_key = sanitize_text_field( $request->get_param( 'booking_key' ) );
+    $note        = sanitize_textarea_field( $request->get_param( 'note' ) );
+    if ( empty( $booking_key ) ) return new WP_Error( 'missing_param', 'booking_key is required.', [ 'status' => 400 ] );
+    $all_notes = get_option( 'aa_booking_notes', [] );
+    if ( ! is_array( $all_notes ) ) $all_notes = [];
+    if ( $note === '' ) {
+        unset( $all_notes[ $booking_key ] );
+    } else {
+        $all_notes[ $booking_key ] = $note;
+    }
+    update_option( 'aa_booking_notes', $all_notes );
+    return rest_ensure_response( [ 'success' => true, 'message' => 'Note saved.' ] );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

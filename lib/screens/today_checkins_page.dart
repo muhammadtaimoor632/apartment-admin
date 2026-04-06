@@ -71,8 +71,11 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
 
     for (final cal in _calendars) {
       for (final event in cal.events) {
-        final startDate =
-            DateTime(event.start.year, event.start.month, event.start.day);
+        final startDate = DateTime(
+          event.start.year,
+          event.start.month,
+          event.start.day,
+        );
         if (startDate.isAtSameMomentAs(today) && !event.isBlocked) {
           entries.add(_CheckinEntry(calendarName: cal.name, event: event));
         }
@@ -103,27 +106,32 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         final roomEvents = byRoom[roomName]!;
         // Find events checking out today
         for (final event in roomEvents) {
-          final endDate =
-              DateTime(event.end.year, event.end.month, event.end.day);
+          final endDate = DateTime(
+            event.end.year,
+            event.end.month,
+            event.end.day,
+          );
           if (endDate.isAtSameMomentAs(today)) {
             // Find the next booking for this room after today
-            final upcoming = roomEvents
-                .where((e) {
-                  final startDate =
-                      DateTime(e.start.year, e.start.month, e.start.day);
-                  return startDate.isAfter(today) ||
-                      startDate.isAtSameMomentAs(today);
-                })
-                .toList()
-              ..sort((a, b) => a.start.compareTo(b.start));
+            final upcoming = roomEvents.where((e) {
+              final startDate = DateTime(
+                e.start.year,
+                e.start.month,
+                e.start.day,
+              );
+              return startDate.isAfter(today) ||
+                  startDate.isAtSameMomentAs(today);
+            }).toList()..sort((a, b) => a.start.compareTo(b.start));
 
             final nextBooking = upcoming.isNotEmpty ? upcoming.first : null;
 
-            entries.add(_CheckoutEntry(
-              calendarName: cal.name,
-              checkoutEvent: event,
-              nextBooking: nextBooking,
-            ));
+            entries.add(
+              _CheckoutEntry(
+                calendarName: cal.name,
+                checkoutEvent: event,
+                nextBooking: nextBooking,
+              ),
+            );
           }
         }
       }
@@ -162,8 +170,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     return 'Guest';
   }
 
-  String? _getGuestField(
-      Map<String, dynamic> formData, List<String> keywords) {
+  String? _getGuestField(Map<String, dynamic> formData, List<String> keywords) {
     for (final key in formData.keys) {
       final lk = key.toLowerCase();
       for (final kw in keywords) {
@@ -195,11 +202,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? _buildErrorState()
-              : RefreshIndicator(
-                  onRefresh: _fetchData,
-                  child: _buildBody(),
-                ),
+          ? _buildErrorState()
+          : RefreshIndicator(onRefresh: _fetchData, child: _buildBody()),
     );
   }
 
@@ -226,7 +230,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                 backgroundColor: const Color(0xFF8CB2A4),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
@@ -320,8 +325,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child:
-                    const Icon(Icons.today, color: Colors.white, size: 26),
+                child: const Icon(Icons.today, color: Colors.white, size: 26),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -382,8 +386,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
           const SizedBox(height: 6),
           Container(
             margin: const EdgeInsets.only(bottom: 12),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.orange.shade50,
               borderRadius: BorderRadius.circular(10),
@@ -391,14 +394,19 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
             ),
             child: Row(
               children: [
-                Icon(Icons.tips_and_updates_outlined,
-                    size: 16, color: Colors.orange.shade700),
+                Icon(
+                  Icons.tips_and_updates_outlined,
+                  size: 16,
+                  color: Colors.orange.shade700,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'These rooms are checking out today. The next guest\'s details are shown so cleaners can prepare accordingly.',
                     style: TextStyle(
-                        fontSize: 12, color: Colors.orange.shade800),
+                      fontSize: 12,
+                      color: Colors.orange.shade800,
+                    ),
                   ),
                 ),
               ],
@@ -440,8 +448,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         ),
         const Spacer(),
         Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(20),
@@ -465,13 +472,14 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     final bgColor = _parseColor(event.backgroundColor);
     final dateFormatter = DateFormat('dd MMM');
     final guestName = _getGuestName(event.formData);
-    final arrivalTime =
-        _getGuestField(event.formData, ['arrival', 'time', 'checkin']);
-    final lockCode =
-        _getGuestField(event.formData, ['lock', 'code', 'pin']);
+    final arrivalTime = _getGuestField(event.formData, [
+      'arrival',
+      'time',
+      'checkin',
+    ]);
+    final lockCode = _getGuestField(event.formData, ['lock', 'code', 'pin']);
     final email = _getGuestField(event.formData, ['email', 'mail']);
-    final phone =
-        _getGuestField(event.formData, ['phone', 'mobile', 'tel']);
+    final phone = _getGuestField(event.formData, ['phone', 'mobile', 'tel']);
 
     return GestureDetector(
       onTap: () => _showEventDetail(event, isCheckin: true),
@@ -500,7 +508,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                     child: Text(
                       event.room,
                       style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w700),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                   _platformBadge(event.platform),
@@ -511,8 +521,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                 children: [
                   CircleAvatar(
                     radius: 18,
-                    backgroundColor:
-                        bgColor.withValues(alpha: 0.12),
+                    backgroundColor: bgColor.withValues(alpha: 0.12),
                     child: Icon(Icons.person, color: bgColor, size: 20),
                   ),
                   const SizedBox(width: 10),
@@ -523,13 +532,17 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                         Text(
                           guestName,
                           style: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w600),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         if (email != null)
                           Text(
                             email,
                             style: TextStyle(
-                                fontSize: 12, color: Colors.grey[500]),
+                              fontSize: 12,
+                              color: Colors.grey[500],
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                       ],
@@ -537,7 +550,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.grey[100],
                       borderRadius: BorderRadius.circular(10),
@@ -547,13 +562,16 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                         Text(
                           '${event.nights}',
                           style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                         Text(
                           'night${event.nights == 1 ? '' : 's'}',
                           style: TextStyle(
-                              fontSize: 9, color: Colors.grey[500]),
+                            fontSize: 9,
+                            color: Colors.grey[500],
+                          ),
                         ),
                       ],
                     ),
@@ -571,13 +589,14 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                     Colors.blueGrey,
                   ),
                   if (arrivalTime != null)
-                    _infoChip(Icons.access_time, arrivalTime,
-                        const Color(0xFF8CB2A4)),
-                  if (phone != null)
-                    _infoChip(Icons.phone, phone, Colors.blue),
-                  if (lockCode != null)
                     _infoChip(
-                        Icons.lock, lockCode, const Color(0xFFC62828)),
+                      Icons.access_time,
+                      arrivalTime,
+                      const Color(0xFF8CB2A4),
+                    ),
+                  if (phone != null) _infoChip(Icons.phone, phone, Colors.blue),
+                  if (lockCode != null)
+                    _infoChip(Icons.lock, lockCode, const Color(0xFFC62828)),
                 ],
               ),
             ],
@@ -630,14 +649,18 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                           Text(
                             checkoutEvent.room,
                             style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w700),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                           const SizedBox(height: 3),
                           Row(
                             children: [
-                              Icon(Icons.location_on_rounded,
-                                  size: 12,
-                                  color: const Color(0xFFE57373)),
+                              Icon(
+                                Icons.location_on_rounded,
+                                size: 12,
+                                color: const Color(0xFFE57373),
+                              ),
                               const SizedBox(width: 3),
                               Flexible(
                                 child: Text(
@@ -663,10 +686,14 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   children: [
                     CircleAvatar(
                       radius: 16,
-                      backgroundColor:
-                          const Color(0xFFE57373).withValues(alpha: 0.12),
-                      child: const Icon(Icons.flight_takeoff_rounded,
-                          color: Color(0xFFE57373), size: 17),
+                      backgroundColor: const Color(
+                        0xFFE57373,
+                      ).withValues(alpha: 0.12),
+                      child: const Icon(
+                        Icons.flight_takeoff_rounded,
+                        color: Color(0xFFE57373),
+                        size: 17,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -685,7 +712,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                             'Stayed ${checkoutEvent.nights} night${checkoutEvent.nights == 1 ? '' : 's'} · '
                             '${dateFormatter.format(checkoutEvent.start)} → ${dateFormatter.format(checkoutEvent.end)}',
                             style: TextStyle(
-                                fontSize: 11, color: Colors.grey[500]),
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                            ),
                           ),
                         ],
                       ),
@@ -719,15 +748,19 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: const Color(0xFF8CB2A4).withValues(alpha: 0.3)),
+                    color: const Color(0xFF8CB2A4).withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.arrow_forward_rounded,
-                            size: 14, color: Color(0xFF8CB2A4)),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 14,
+                          color: Color(0xFF8CB2A4),
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           'Next Guest',
@@ -741,10 +774,13 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                         const Spacer(),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF8CB2A4)
-                                .withValues(alpha: 0.15),
+                            color: const Color(
+                              0xFF8CB2A4,
+                            ).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -767,11 +803,16 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                         Text(
                           'Tap for full details',
                           style: TextStyle(
-                              fontSize: 10, color: Colors.grey[400]),
+                            fontSize: 10,
+                            color: Colors.grey[400],
+                          ),
                         ),
                         const SizedBox(width: 3),
-                        Icon(Icons.chevron_right,
-                            size: 14, color: Colors.grey[400]),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 14,
+                          color: Colors.grey[400],
+                        ),
                       ],
                     ),
                   ],
@@ -791,13 +832,11 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.event_busy,
-                        size: 16, color: Colors.grey[400]),
+                    Icon(Icons.event_busy, size: 16, color: Colors.grey[400]),
                     const SizedBox(width: 8),
                     Text(
                       'No upcoming booking found for this room.',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey[500]),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                     ),
                   ],
                 ),
@@ -811,14 +850,22 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
 
   Widget _buildNextGuestInfo(BookingEvent nextBooking) {
     final guestName = _getGuestName(nextBooking.formData);
-    final arrivalTime = _getGuestField(
-        nextBooking.formData, ['arrival', 'time', 'checkin']);
-    final lockCode =
-        _getGuestField(nextBooking.formData, ['lock', 'code', 'pin']);
-    final email =
-        _getGuestField(nextBooking.formData, ['email', 'mail']);
-    final phone =
-        _getGuestField(nextBooking.formData, ['phone', 'mobile', 'tel']);
+    final arrivalTime = _getGuestField(nextBooking.formData, [
+      'arrival',
+      'time',
+      'checkin',
+    ]);
+    final lockCode = _getGuestField(nextBooking.formData, [
+      'lock',
+      'code',
+      'pin',
+    ]);
+    final email = _getGuestField(nextBooking.formData, ['email', 'mail']);
+    final phone = _getGuestField(nextBooking.formData, [
+      'phone',
+      'mobile',
+      'tel',
+    ]);
     final dateFormatter = DateFormat('dd MMM');
 
     return Column(
@@ -828,10 +875,12 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
           children: [
             CircleAvatar(
               radius: 15,
-              backgroundColor:
-                  const Color(0xFF8CB2A4).withValues(alpha: 0.15),
-              child: const Icon(Icons.person,
-                  color: Color(0xFF8CB2A4), size: 16),
+              backgroundColor: const Color(0xFF8CB2A4).withValues(alpha: 0.15),
+              child: const Icon(
+                Icons.person,
+                color: Color(0xFF8CB2A4),
+                size: 16,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -841,13 +890,14 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   Text(
                     guestName,
                     style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w700),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   if (email != null)
                     Text(
                       email,
-                      style: TextStyle(
-                          fontSize: 11, color: Colors.grey[500]),
+                      style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                       overflow: TextOverflow.ellipsis,
                     ),
                 ],
@@ -872,13 +922,14 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
               Colors.blueGrey,
             ),
             if (arrivalTime != null)
-              _infoChip(Icons.access_time, arrivalTime,
-                  const Color(0xFF8CB2A4)),
-            if (phone != null)
-              _infoChip(Icons.phone, phone, Colors.blue),
-            if (lockCode != null)
               _infoChip(
-                  Icons.lock, lockCode, const Color(0xFFC62828)),
+                Icons.access_time,
+                arrivalTime,
+                const Color(0xFF8CB2A4),
+              ),
+            if (phone != null) _infoChip(Icons.phone, phone, Colors.blue),
+            if (lockCode != null)
+              _infoChip(Icons.lock, lockCode, const Color(0xFFC62828)),
           ],
         ),
       ],
@@ -889,8 +940,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
 
   Widget _infoChip(IconData icon, String text, Color color) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
@@ -904,9 +954,10 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
             child: Text(
               text,
               style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: color),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -927,8 +978,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     }
 
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
@@ -936,9 +986,10 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
       child: Text(
         label,
         style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: color),
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
       ),
     );
   }
@@ -953,185 +1004,338 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
-        return Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.85,
-          ),
-          margin: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Close button
-                Row(
+        bool _noteLoading = true;
+        bool _noteSaving = false;
+        final TextEditingController _noteCtrl = TextEditingController();
+
+        return StatefulBuilder(
+          builder: (ctx2, setSheetState) {
+            // Load note once
+            if (_noteLoading) {
+              ApiService.fetchBookingNote(event).then((n) {
+                if (ctx2.mounted) {
+                  setSheetState(() {
+                    _noteCtrl.text = n;
+                    _noteLoading = false;
+                  });
+                }
+              });
+            }
+
+            return Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.9,
+              ),
+              margin: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isCheckin
-                            ? const Color(0xFF8CB2A4)
-                                .withValues(alpha: 0.12)
-                            : const Color(0xFFE57373)
-                                .withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        isCheckin ? '✈️ Check-in Details' : '🔑 Next Guest Details',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: isCheckin
-                              ? const Color(0xFF8CB2A4)
-                              : const Color(0xFFE57373),
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () => Navigator.of(ctx).pop(),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.close,
-                            size: 20, color: Colors.grey[600]),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Title row
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        event.room,
-                        style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                    _platformBadge(event.platform),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                // Dates
-                Row(
-                  children: [
-                    Expanded(
-                        child: _detailField('Check-in',
-                            dateFormatter.format(event.start))),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: _detailField('Check-out',
-                            dateFormatter.format(event.end))),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (event.nights > 0)
-                  _detailField('Duration',
-                      '${event.nights} night${event.nights == 1 ? '' : 's'}'),
-
-                // Guest form data
-                if (event.formData.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  Text(
-                    'Guest Details',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.grey[500]),
-                  ),
-                  const SizedBox(height: 10),
-                  ...event.formData.entries
-                      .where((e) {
-                        if (e.value == null ||
-                            e.value.toString().isEmpty) return false;
-                        final lk = e.key
-                            .toLowerCase()
-                            .replaceAll(' ', '');
-                        if (lk.contains('nonce') ||
-                            lk.contains('referer') ||
-                            lk.contains('token') ||
-                            lk.contains('hash') ||
-                            lk.contains('wphttp') ||
-                            lk.contains('_wp_') ||
-                            lk.contains('formid') ||
-                            lk.contains('__') ||
-                            lk.startsWith('utm')) return false;
-                        return true;
-                      })
-                      .map((entry) {
-                    final lk = entry.key.toLowerCase();
-                    final isSecret = lk.contains('lock') ||
-                        lk.contains('code') ||
-                        lk.contains('pin');
-                    return _detailField(
-                      entry.key,
-                      entry.value.toString(),
-                      isSecret: isSecret,
-                    );
-                  }),
-                ],
-
-                if (event.formData.isEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(top: 16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.amber[50],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
+                    // Header row
+                    Row(
                       children: [
-                        Icon(Icons.info_outline,
-                            color: Colors.amber[700]),
-                        const SizedBox(width: 12),
-                        Expanded(
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isCheckin
+                                ? const Color(
+                                    0xFF8CB2A4,
+                                  ).withValues(alpha: 0.12)
+                                : const Color(
+                                    0xFFE57373,
+                                  ).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                           child: Text(
-                            'No guest details found in Fluent Forms for this booking.',
+                            isCheckin
+                                ? '✈️ Check-in Details'
+                                : '🔑 Next Guest Details',
                             style: TextStyle(
-                                color: Colors.amber[800],
-                                fontSize: 13),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: isCheckin
+                                  ? const Color(0xFF8CB2A4)
+                                  : const Color(0xFFE57373),
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => Navigator.of(ctx2).pop(),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.close,
+                              size: 20,
+                              color: Colors.grey[600],
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 16),
 
-                const SizedBox(height: 12),
-              ],
-            ),
-          ),
+                    // Title row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            event.room,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        _platformBadge(event.platform),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Dates
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _detailField(
+                            'Check-in',
+                            dateFormatter.format(event.start),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _detailField(
+                            'Check-out',
+                            dateFormatter.format(event.end),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (event.nights > 0)
+                      _detailField(
+                        'Duration',
+                        '${event.nights} night${event.nights == 1 ? '' : 's'}',
+                      ),
+
+                    // Guest form data
+                    if (event.formData.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      Text(
+                        'Guest Details',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ...event.formData.entries
+                          .where((e) {
+                            if (e.value == null || e.value.toString().isEmpty)
+                              return false;
+                            final lk = e.key.toLowerCase().replaceAll(' ', '');
+                            if (lk.contains('nonce') ||
+                                lk.contains('referer') ||
+                                lk.contains('token') ||
+                                lk.contains('hash') ||
+                                lk.contains('wphttp') ||
+                                lk.contains('_wp_') ||
+                                lk.contains('formid') ||
+                                lk.contains('__') ||
+                                lk.startsWith('utm'))
+                              return false;
+                            return true;
+                          })
+                          .map((entry) {
+                            final lk = entry.key.toLowerCase();
+                            final isSecret =
+                                lk.contains('lock') ||
+                                lk.contains('code') ||
+                                lk.contains('pin');
+                            return _detailField(
+                              entry.key,
+                              entry.value.toString(),
+                              isSecret: isSecret,
+                            );
+                          }),
+                    ],
+
+                    if (event.formData.isEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 16),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.amber[50],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.amber[700]),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'No guest details found in Fluent Forms for this booking.',
+                                style: TextStyle(
+                                  color: Colors.amber[800],
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    // ── Notes Section ────────────────────────────────────
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF8E1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.sticky_note_2_outlined,
+                            size: 16,
+                            color: Color(0xFFF9A825),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Notes',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        const Spacer(),
+                        if (_noteLoading)
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF8CB2A4),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFDE7),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFFFFEE58),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: TextField(
+                        controller: _noteCtrl,
+                        minLines: 3,
+                        maxLines: 6,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF212529),
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Add notes about this guest or booking…',
+                          hintStyle: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[400],
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.all(14),
+                        ),
+                        onChanged: (_) {},
+                        enabled: !_noteLoading,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _noteSaving || _noteLoading
+                            ? null
+                            : () async {
+                                setSheetState(() => _noteSaving = true);
+                                final ok = await ApiService.saveBookingNote(
+                                  event,
+                                  _noteCtrl.text.trim(),
+                                );
+                                if (ctx2.mounted) {
+                                  setSheetState(() => _noteSaving = false);
+                                  ScaffoldMessenger.of(ctx2).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        ok
+                                            ? 'Note saved ✓'
+                                            : 'Failed to save note',
+                                      ),
+                                      backgroundColor: ok
+                                          ? const Color(0xFF8CB2A4)
+                                          : Colors.red,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              },
+                        icon: _noteSaving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.save_outlined, size: 18),
+                        label: Text(_noteSaving ? 'Saving…' : 'Save Note'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF8CB2A4),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
   }
 
-  Widget _detailField(String label, String value,
-      {bool isSecret = false}) {
+  Widget _detailField(String label, String value, {bool isSecret = false}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isSecret
-            ? const Color(0xFFFFF5F5)
-            : const Color(0xFFF8F9FA),
+        color: isSecret ? const Color(0xFFFFF5F5) : const Color(0xFFF8F9FA),
         border: Border.all(
-            color: isSecret
-                ? const Color(0xFFFFCDD2)
-                : const Color(0xFFE9ECEF)),
+          color: isSecret ? const Color(0xFFFFCDD2) : const Color(0xFFE9ECEF),
+        ),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -1143,9 +1347,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.5,
-              color: isSecret
-                  ? const Color(0xFFC62828)
-                  : Colors.grey[500],
+              color: isSecret ? const Color(0xFFC62828) : Colors.grey[500],
             ),
           ),
           const SizedBox(height: 4),
@@ -1153,8 +1355,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
             value,
             style: TextStyle(
               fontSize: isSecret ? 17 : 15,
-              fontWeight:
-                  isSecret ? FontWeight.w800 : FontWeight.w500,
+              fontWeight: isSecret ? FontWeight.w800 : FontWeight.w500,
               letterSpacing: isSecret ? 2 : 0,
               fontFamily: isSecret ? 'monospace' : null,
               color: isSecret
