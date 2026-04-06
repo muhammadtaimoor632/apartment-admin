@@ -179,12 +179,14 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
-        // Summary cards row (per property)
-        _buildSummaryCards(),
-        const SizedBox(height: 16),
-
-        // Calendar selector tabs (just above the calendar grid)
+        // Calendar selector tabs (top level selector)
         if (_calendars.length > 1) _buildCalendarSelector(),
+
+        // Summary card for the currently selected property
+        if (_activeCalendar != null) ...[
+          _buildPropertyStatsCard(_activeCalendar!),
+          const SizedBox(height: 16),
+        ],
 
         // Calendar grid
         _buildCalendarGrid(),
@@ -259,16 +261,7 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     );
   }
 
-  // ─── Summary cards (per property) ──────────────────────────────
-
-  Widget _buildSummaryCards() {
-    if (_calendars.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [..._calendars.map((cal) => _buildPropertyStatsCard(cal))],
-    );
-  }
+  // ─── Summary card (active property only) ───────────────────────────────
 
   Widget _buildPropertyStatsCard(BookingCalendar cal) {
     final now = DateTime.now();

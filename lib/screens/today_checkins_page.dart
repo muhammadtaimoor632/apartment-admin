@@ -183,6 +183,41 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     return null;
   }
 
+  String? _getArrivalTime(Map<String, dynamic> formData) {
+    // 1) The user specifies there is a 'datetime' field in the form.
+    for (final key in formData.keys) {
+      final lk = key.toLowerCase().replaceAll(' ', '').replaceAll('-', '').replaceAll('_', '');
+      if (lk.contains('datetime')) {
+        final val = formData[key];
+        if (val != null && val.toString().isNotEmpty) return val.toString();
+      }
+    }
+
+    // 2) Look for explicit time fields
+    final explicit = _getGuestField(formData, [
+      'arrival time',
+      'check-in time',
+      'checkin time',
+      'expected arrival',
+      'time of arrival',
+    ]);
+    if (explicit != null) return explicit;
+
+    // 3) Look for any field with 'time'
+    for (final key in formData.keys) {
+      final lk = key.toLowerCase();
+      if ((lk.contains('arrival') ||
+              lk.contains('checkin') ||
+              lk.contains('check-in')) &&
+          lk.contains('time')) {
+        final val = formData[key];
+        if (val != null && val.toString().isNotEmpty) return val.toString();
+      }
+    }
+
+    return null;
+  }
+
   // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
@@ -472,11 +507,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     final bgColor = _parseColor(event.backgroundColor);
     final dateFormatter = DateFormat('dd MMM');
     final guestName = _getGuestName(event.formData);
-    final arrivalTime = _getGuestField(event.formData, [
-      'arrival',
-      'time',
-      'checkin',
-    ]);
+    final arrivalTime = _getArrivalTime(event.formData);
     final lockCode = _getGuestField(event.formData, ['lock', 'code', 'pin']);
     final email = _getGuestField(event.formData, ['email', 'mail']);
     final phone = _getGuestField(event.formData, ['phone', 'mobile', 'tel']);
@@ -850,11 +881,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
 
   Widget _buildNextGuestInfo(BookingEvent nextBooking) {
     final guestName = _getGuestName(nextBooking.formData);
-    final arrivalTime = _getGuestField(nextBooking.formData, [
-      'arrival',
-      'time',
-      'checkin',
-    ]);
+    final arrivalTime = _getArrivalTime(nextBooking.formData);
     final lockCode = _getGuestField(nextBooking.formData, [
       'lock',
       'code',
