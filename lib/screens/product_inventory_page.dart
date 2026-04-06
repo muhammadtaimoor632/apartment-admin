@@ -14,6 +14,12 @@ class ProductInventoryPage extends StatefulWidget {
 class _ProductInventoryPageState extends State<ProductInventoryPage> {
   late Future<(List<CleaningDetails>, List<InventoryItem>)> _dataFuture;
 
+  // Brand colour palette
+  static const Color _primary = Color(0xFF8CB2A4);
+  static const Color _primaryDark = Color(0xFF5D8A7A);
+  static const Color _primaryLight = Color(0xFFB8D4CC);
+  static const Color _accent = Color(0xFF4A7C6F);
+
   @override
   void initState() {
     super.initState();
@@ -21,7 +27,6 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
   }
 
   Future<(List<CleaningDetails>, List<InventoryItem>)> _fetchData() async {
-    // Use Future.wait to fetch both lists in parallel for efficiency
     final results = await Future.wait([
       ApiService.fetchCleaningDetails(),
       ApiService.fetchInventoryItems(),
@@ -50,119 +55,308 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Inventory', style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF8CB2A4),
-      ),
+      backgroundColor: const Color(0xFFF4F7F6),
       body: FutureBuilder<(List<CleaningDetails>, List<InventoryItem>)>(
         future: _dataFuture,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.$1.isEmpty) {
-            return const Center(child: Text('No apartments found.'));
-          }
-
-          final apartments = snapshot.data!.$1;
-          final allInventoryItems = snapshot.data!.$2;
-
-          return RefreshIndicator(
-            onRefresh: () {
-              setState(() {
-                _dataFuture = _fetchData();
-              });
-              return _dataFuture;
-            },
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16.0),
-              itemCount: apartments.length,
-              itemBuilder: (context, index) {
-                final apartment = apartments[index];
-                // NEW: Count only the items that have a stock record for this specific apartment.
-                final inventoryCount = allInventoryItems
-                    .where((item) => item.stock.containsKey(apartment.id))
-                    .length;
-                final subtitle =
-                    '$inventoryCount ${inventoryCount == 1 ? "item" : "items"}';
-
-                return GestureDetector(
-                  onTap: () => _navigateToInventoryList(
-                    context,
-                    apartment.id,
-                    apartment.name,
-                  ),
-                  child: Card(
-                    color: Colors.white,
-                    elevation: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 24.0,
-                        horizontal: 16.0,
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          CircleAvatar(
-                            radius: 65,
-                            backgroundColor: Colors.grey.shade200,
-                            backgroundImage: apartment.imageUrl.isNotEmpty
-                                ? NetworkImage(apartment.imageUrl)
-                                : null,
-                            child: apartment.imageUrl.isEmpty
-                                ? const Icon(
-                                    Icons.apartment,
-                                    color: Colors.grey,
-                                    size: 70,
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                apartment.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Icon(
-                                Icons.arrow_forward_ios,
-                                color: Colors.grey.shade500,
-                                size: 18,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            subtitle,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
+          return NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              _buildSliverAppBar(context, innerBoxIsScrolled),
+            ],
+            body: _buildBody(snapshot),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildSliverAppBar(BuildContext context, bool innerBoxIsScrolled) {
+    return SliverAppBar(
+      expandedHeight: 160,
+      floating: false,
+      pinned: true,
+      elevation: 0,
+      backgroundColor: _primaryDark,
+      iconTheme: const IconThemeData(color: Colors.white),
+      flexibleSpace: FlexibleSpaceBar(
+        titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text(
+              'Inventory',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+            Text(
+              'Select an apartment',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+        background: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [_accent, _primary, _primaryLight],
+            ),
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                right: -30,
+                top: -30,
+                child: Container(
+                  width: 180,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.07),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 40,
+                bottom: -20,
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.05),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: -20,
+                bottom: 0,
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.06),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(
+      AsyncSnapshot<(List<CleaningDetails>, List<InventoryItem>)> snapshot) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const Center(
+        child: CircularProgressIndicator(color: _primary),
+      );
+    }
+    if (snapshot.hasError) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              'Error: ${snapshot.error}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+    if (!snapshot.hasData || snapshot.data!.$1.isEmpty) {
+      return const Center(
+        child: Text(
+          'No apartments found.',
+          style: TextStyle(color: Colors.grey, fontSize: 16),
+        ),
+      );
+    }
+
+    final apartments = snapshot.data!.$1;
+    final allInventoryItems = snapshot.data!.$2;
+
+    return RefreshIndicator(
+      color: _primary,
+      onRefresh: () {
+        setState(() {
+          _dataFuture = _fetchData();
+        });
+        return _dataFuture;
+      },
+      child: GridView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 14,
+          mainAxisSpacing: 14,
+          childAspectRatio: 0.82,
+        ),
+        itemCount: apartments.length,
+        itemBuilder: (context, index) {
+          final apartment = apartments[index];
+          final inventoryCount = allInventoryItems
+              .where((item) => item.stock.containsKey(apartment.id))
+              .length;
+          return _ApartmentInventoryCard(
+            apartment: apartment,
+            inventoryCount: inventoryCount,
+            onTap: () =>
+                _navigateToInventoryList(context, apartment.id, apartment.name),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ApartmentInventoryCard extends StatelessWidget {
+  final CleaningDetails apartment;
+  final int inventoryCount;
+  final VoidCallback onTap;
+
+  static const Color _primary = Color(0xFF8CB2A4);
+  static const Color _primaryDark = Color(0xFF5D8A7A);
+
+  const _ApartmentInventoryCard({
+    required this.apartment,
+    required this.inventoryCount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: _primary.withValues(alpha: 0.18),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Image strip ──────────────────────────────────────────
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    apartment.imageUrl.isNotEmpty
+                        ? Image.network(
+                            apartment.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                _placeholderBg(),
+                          )
+                        : _placeholderBg(),
+                    // subtle gradient overlay so text is readable
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.3),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // item count badge
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _primaryDark.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '$inventoryCount item${inventoryCount == 1 ? '' : 's'}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Info row ─────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 10, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        apartment.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: Color(0xFF2D3E3A),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: _primary.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 12,
+                        color: _primaryDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _placeholderBg() {
+    return Container(
+      color: const Color(0xFFDCEDE8),
+      child: const Icon(Icons.apartment_rounded,
+          color: Color(0xFF8CB2A4), size: 56),
     );
   }
 }
