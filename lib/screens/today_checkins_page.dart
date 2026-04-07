@@ -152,7 +152,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF7F9FC),
       appBar: AppBar(
         title: const Text('Today', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF8CB2A4),
@@ -191,89 +191,181 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         children: [
           SizedBox(
             height: MediaQuery.of(context).size.height * 0.7,
-            child: const Center(child: Text('No events today.')),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.event_available, size: 60, color: Colors.grey[300]),
+                  const SizedBox(height: 16),
+                  Text('All quiet today!', style: TextStyle(fontSize: 18, color: Colors.grey[500], fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
           ),
         ],
       );
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       children: [
         if (checkins.isNotEmpty) ...[
-          const Text('Guests checking in today', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
+          _buildSectionHeader('Guests checking in today', Icons.flight_land, const Color(0xFF4CAF50), checkins.length),
           ...checkins.map((e) => _buildCard(e, isCheckout: false)),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
         ],
         if (hosting.isNotEmpty) ...[
-          const Text('Currently hosting guests', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
+          _buildSectionHeader('Currently hosting guests', Icons.hotel, const Color(0xFF2196F3), hosting.length),
           ...hosting.map((e) => _buildCard(e, isCheckout: false)),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
         ],
         if (cleaning.isNotEmpty) ...[
-          const Text('Rooms cleaners need to clean', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
+          _buildSectionHeader('Rooms cleaners need to clean', Icons.cleaning_services, const Color(0xFFFF9800), cleaning.length),
           ...cleaning.map((e) => _buildCard(e, isCheckout: true)),
         ],
       ],
     );
   }
 
+  Widget _buildSectionHeader(String title, IconData icon, Color color, int count) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: -0.3),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '$count',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey[800]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCard(_BookingEntry entry, {required bool isCheckout}) {
     if (isCheckout) {
       final String subtitle;
+      final String timeInfo;
       if (entry.nextEvent != null) {
-        final nextArrival = _getArrivalTime(entry.nextEvent!.formData) ?? DateFormat('hh:mm a').format(entry.nextEvent!.start);
-        final nextDate = DateFormat('dd MMM yyyy').format(entry.nextEvent!.start);
-        subtitle = 'Next guest check-in: $nextDate, $nextArrival';
+        final nextArrival = _getArrivalTime(entry.nextEvent!.formData) ?? '3:00 PM';
+        final nextDate = DateFormat('MMM dd, yyyy').format(entry.nextEvent!.start);
+        subtitle = 'Next guest check-in: $nextDate';
+        timeInfo = nextArrival;
       } else {
-        subtitle = 'No upcoming guest';
+        subtitle = 'No upcoming guest found';
+        timeInfo = '--';
       }
       
-      return InkWell(
-        onTap: () => _showEventDetail(entry, isCheckout: true),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey[300]!),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(entry.event.room, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text(subtitle, style: const TextStyle(fontSize: 14)),
-            ],
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: InkWell(
+          onTap: () => _showEventDetail(entry, isCheckout: true),
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+              ],
+              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(entry.event.room, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, letterSpacing: -0.2)),
+                      const SizedBox(height: 6),
+                      Text(subtitle, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                    ],
+                  ),
+                ),
+                if (entry.nextEvent != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(12)),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.access_time, size: 14, color: Colors.orange),
+                        const SizedBox(height: 4),
+                        Text(timeInfo, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange[900])),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       );
     } else {
       final event = entry.event;
-      final arrivalTime = _getArrivalTime(event.formData) ?? DateFormat('hh:mm a').format(event.start);
-      final date = DateFormat('dd MMM yyyy').format(event.start);
+      final arrivalTime = _getArrivalTime(event.formData) ?? '3:00 PM';
+      final date = DateFormat('MMM dd, yyyy').format(event.start);
 
-      return InkWell(
-        onTap: () => _showEventDetail(entry, isCheckout: false),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey[300]!),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(event.room, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text('Checkin time: $date, $arrivalTime', style: const TextStyle(fontSize: 14)),
-            ],
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: InkWell(
+          onTap: () => _showEventDetail(entry, isCheckout: false),
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+              ],
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(event.room, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, letterSpacing: -0.2)),
+                      const SizedBox(height: 6),
+                      Text('Check-in: $date', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(color: const Color(0xFF8CB2A4).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.access_time, size: 14, color: Color(0xFF6D9B8C)),
+                      const SizedBox(height: 4),
+                      Text(arrivalTime, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF4A7A6D))),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
