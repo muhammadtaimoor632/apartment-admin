@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:wild_atlantic_hub/models/booking_event.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
+import 'package:wild_atlantic_hub/models/cleaning_details.dart';
 
 class TodayCheckinsPage extends StatefulWidget {
   const TodayCheckinsPage({super.key});
@@ -22,6 +23,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   bool _isLoading = true;
   String? _errorMessage;
   DateTime? _lastFetchedDate;
+  Map<String, String> _cleaningStatusesByRoomName = {};
 
   @override
   void initState() {
@@ -49,10 +51,25 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     });
 
     try {
-      final calendars = await ApiService.fetchBookingCalendars();
+      final calendarsFuture = ApiService.fetchBookingCalendars();
+      final detailsFuture = ApiService.fetchCleaningDetails();
+      final statusesFuture = ApiService.fetchCleaningStatuses();
+
+      final results = await Future.wait([calendarsFuture, detailsFuture, statusesFuture]);
+      final calendars = results[0] as List<BookingCalendar>;
+      final details = results[1] as List<CleaningDetails>;
+      final statuses = results[2] as Map<String, dynamic>;
+
+      final Map<String, String> statusMap = {};
+      for (final d in details) {
+        final normName = d.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+        statusMap[normName] = statuses[d.id]?.toString() ?? 'not_cleaned';
+      }
+
       if (mounted) {
         setState(() {
           _calendars = calendars;
+          _cleaningStatusesByRoomName = statusMap;
           _isLoading = false;
           _lastFetchedDate = DateTime.now();
         });
@@ -111,6 +128,10 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
       }
 
       for (final roomName in byRoom.keys) {
+        final normRoomName = roomName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+        final status = _cleaningStatusesByRoomName[normRoomName] ?? 'not_cleaned';
+        if (status == 'cleaned') continue;
+
         final roomEvents = byRoom[roomName]!;
         for (final event in roomEvents) {
           final end = DateTime(event.end.year, event.end.month, event.end.day);
@@ -118,6 +139,41 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
             final upcoming = roomEvents.where((e) {
               final startDate = DateTime(e.start.year, e.start.month, e.start.day);
               // It's the next booking if it starts today or in the future
+              return startDate.isAfter(today) || (startDate.isAtSameMomentAs(today) && e != event);
+            }).toList()..sort((a, b) => a.start.compareTo(b.start));
+
+            final nextEvent = upcoming.isNotEmpty ? upcoming.first : null;
+            entries.add(_BookingEntry(calendarName: cal.name, event: event, nextEvent: nextEvent));
+          }
+        }
+      }
+    }
+    return entries;
+  }
+
+  List<_BookingEntry> get _readyForCheckin {
+    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    final entries = <_BookingEntry>[];
+    
+    for (final cal in _calendars) {
+      final Map<String, List<BookingEvent>> byRoom = {};
+      for (final e in cal.events) {
+        if (!e.isBlocked) {
+          byRoom.putIfAbsent(e.room, () => []).add(e);
+        }
+      }
+
+      for (final roomName in byRoom.keys) {
+        final normRoomName = roomName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+        final status = _cleaningStatusesByRoomName[normRoomName] ?? 'not_cleaned';
+        if (status != 'cleaned') continue;
+
+        final roomEvents = byRoom[roomName]!;
+        for (final event in roomEvents) {
+          final end = DateTime(event.end.year, event.end.month, event.end.day);
+          if (end.isAtSameMomentAs(today)) {
+            final upcoming = roomEvents.where((e) {
+              final startDate = DateTime(e.start.year, e.start.month, e.start.day);
               return startDate.isAfter(today) || (startDate.isAtSameMomentAs(today) && e != event);
             }).toList()..sort((a, b) => a.start.compareTo(b.start));
 
@@ -185,8 +241,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     final checkins = _checkinsToday;
     final hosting = _currentlyHosting;
     final cleaning = _roomsToClean;
+    final ready = _readyForCheckin;
 
-    if (checkins.isEmpty && hosting.isEmpty && cleaning.isEmpty) {
+    if (checkins.isEmpty && hosting.isEmpty && cleaning.isEmpty && ready.isEmpty) {
       return ListView(
         children: [
           SizedBox(
@@ -210,7 +267,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       children: [
         if (checkins.isNotEmpty) ...[
-          _buildSectionHeader('Guests checking in today', Icons.flight_land, const Color(0xFF4CAF50), checkins.length),
+          _buildSectionHeader("Today's Checkin", Icons.flight_land, const Color(0xFF4CAF50), checkins.length),
           ...checkins.map((e) => _buildCard(e, isCheckout: false)),
           const SizedBox(height: 32),
         ],
@@ -220,8 +277,13 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
           const SizedBox(height: 32),
         ],
         if (cleaning.isNotEmpty) ...[
-          _buildSectionHeader('Rooms cleaners need to clean', Icons.cleaning_services, const Color(0xFFFF9800), cleaning.length),
+          _buildSectionHeader('Rooms to clean', Icons.cleaning_services, const Color(0xFFFF9800), cleaning.length),
           ...cleaning.map((e) => _buildCard(e, isCheckout: true)),
+          const SizedBox(height: 32),
+        ],
+        if (ready.isNotEmpty) ...[
+          _buildSectionHeader('Ready for guest check-in', Icons.check_circle_outline, const Color(0xFF4CAF50), ready.length),
+          ...ready.map((e) => _buildCard(e, isCheckout: true)),
         ],
       ],
     );
@@ -281,14 +343,14 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         padding: const EdgeInsets.only(bottom: 12),
         child: InkWell(
           onTap: () => _showEventDetail(entry, isCheckout: true),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+                BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 3)),
               ],
               border: Border.all(color: Colors.orange.withOpacity(0.3)),
             ),
@@ -297,21 +359,23 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(entry.event.room, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, letterSpacing: -0.2)),
-                      const SizedBox(height: 6),
-                      Text(subtitle, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                      Text(entry.event.room, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: -0.2)),
+                      const SizedBox(height: 2),
+                      Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
                     ],
                   ),
                 ),
                 if (entry.nextEvent != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(12)),
-                    child: Column(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(8)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.access_time, size: 14, color: Colors.orange),
-                        const SizedBox(height: 4),
+                        const SizedBox(width: 6),
                         Text(timeInfo, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange[900])),
                       ],
                     ),
@@ -324,42 +388,35 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     } else {
       final event = entry.event;
       final arrivalTime = _getArrivalTime(event.formData) ?? '3:00 PM';
-      final date = DateFormat('MMM dd, yyyy').format(event.start);
 
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: InkWell(
           onTap: () => _showEventDetail(entry, isCheckout: false),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+                BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 3)),
               ],
               border: Border.all(color: Colors.grey[200]!),
             ),
             child: Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(event.room, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, letterSpacing: -0.2)),
-                      const SizedBox(height: 6),
-                      Text('Check-in: $date', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-                    ],
-                  ),
+                  child: Text(event.room, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: -0.2)),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(color: const Color(0xFF8CB2A4).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                  child: Column(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: const Color(0xFF8CB2A4).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(Icons.access_time, size: 14, color: Color(0xFF6D9B8C)),
-                      const SizedBox(height: 4),
+                      const SizedBox(width: 6),
                       Text(arrivalTime, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF4A7A6D))),
                     ],
                   ),
