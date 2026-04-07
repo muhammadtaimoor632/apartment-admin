@@ -78,7 +78,13 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
   List<BookingEvent> _eventsForDate(DateTime date) {
     final d = DateTime(date.year, date.month, date.day);
     return _filteredEvents.where((event) {
-      return d.isAtSameMomentAs(event.start);
+      final start = DateTime(
+        event.start.year,
+        event.start.month,
+        event.start.day,
+      );
+      final end = DateTime(event.end.year, event.end.month, event.end.day);
+      return d.compareTo(start) >= 0 && d.compareTo(end) <= 0;
     }).toList();
   }
 
@@ -423,6 +429,40 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     final firstWeekday = DateTime(year, month, 1).weekday; // Mon=1 .. Sun=7
     final monthLabel = DateFormat('MMMM yyyy').format(_currentMonth);
 
+    final events = List<BookingEvent>.from(_filteredEvents);
+    events.sort((a, b) {
+      final startCmp = a.start.compareTo(b.start);
+      if (startCmp != 0) return startCmp;
+      return b.end.difference(b.start).compareTo(a.end.difference(a.start));
+    });
+
+    final Map<BookingEvent, int> eventSlots = {};
+    final slotEndTimes = <DateTime>[];
+
+    for (final event in events) {
+      final eventStart = DateTime(
+        event.start.year,
+        event.start.month,
+        event.start.day,
+      );
+      final eventEnd = DateTime(event.end.year, event.end.month, event.end.day);
+
+      int assignedSlot = -1;
+      for (int i = 0; i < slotEndTimes.length; i++) {
+        if (eventStart.isAfter(slotEndTimes[i])) {
+          assignedSlot = i;
+          slotEndTimes[i] = eventEnd;
+          break;
+        }
+      }
+
+      if (assignedSlot == -1) {
+        assignedSlot = slotEndTimes.length;
+        slotEndTimes.add(eventEnd);
+      }
+      eventSlots[event] = assignedSlot;
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -493,14 +533,26 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
           // Day cells
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-            child: _buildDayGrid(daysInMonth, firstWeekday, year, month),
+            child: _buildDayGrid(
+              daysInMonth,
+              firstWeekday,
+              year,
+              month,
+              eventSlots,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDayGrid(int daysInMonth, int firstWeekday, int year, int month) {
+  Widget _buildDayGrid(
+    int daysInMonth,
+    int firstWeekday,
+    int year,
+    int month,
+    Map<BookingEvent, int> eventSlots,
+  ) {
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
     final rows = <Widget>[];
@@ -508,45 +560,78 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
 
     for (int week = 0; week < 6; week++) {
       if (dayCounter > daysInMonth) break;
-      final cells = <Widget>[];
 
+      final weekDates = <DateTime?>[];
       for (int dow = 1; dow <= 7; dow++) {
         if ((week == 0 && dow < firstWeekday) || dayCounter > daysInMonth) {
-          cells.add(const Expanded(child: SizedBox(height: 80)));
+          weekDates.add(null);
         } else {
-          final date = DateTime(year, month, dayCounter);
-          final events = _eventsForDate(date);
-          final isToday = date == todayDate;
+          weekDates.add(DateTime(year, month, dayCounter));
+          dayCounter++;
+        }
+      }
 
+      int maxWeekSlot = -1;
+      final Set<BookingEvent> weekActiveEvents = {};
+      for (final date in weekDates) {
+        if (date != null) {
+          final events = _eventsForDate(date);
+          weekActiveEvents.addAll(events);
+          for (final e in events) {
+            final slot = eventSlots[e] ?? 0;
+            if (slot > maxWeekSlot) maxWeekSlot = slot;
+          }
+        }
+      }
+
+      final double rowMinHeight = 80.0;
+      final double requiredHeight = 28.0 + (maxWeekSlot + 1) * 18.0 + 8.0;
+      final double finalHeight = requiredHeight > rowMinHeight
+          ? requiredHeight
+          : rowMinHeight;
+
+      final cells = <Widget>[];
+      for (int dow = 1; dow <= 7; dow++) {
+        final date = weekDates[dow - 1];
+        if (date == null) {
+          cells.add(
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Colors.grey.withValues(alpha: 0.1),
+                    width: 0.5,
+                  ),
+                ),
+              ),
+            ),
+          );
+        } else {
+          final isToday = date == todayDate;
           cells.add(
             Expanded(
               child: GestureDetector(
-                onTap: events.isNotEmpty
-                    ? () => _showDayEventsSheet(date, events)
+                onTap: _eventsForDate(date).isNotEmpty
+                    ? () => _showDayEventsSheet(date, _eventsForDate(date))
                     : null,
                 child: Container(
-                  constraints: const BoxConstraints(minHeight: 80),
-                  margin: const EdgeInsets.all(1.5),
                   decoration: BoxDecoration(
                     color: isToday
                         ? const Color(0xFF8CB2A4).withValues(alpha: 0.15)
                         : Colors.white,
-                    borderRadius: BorderRadius.circular(4),
-                    border: isToday
-                        ? Border.all(color: const Color(0xFF8CB2A4), width: 1.5)
-                        : Border.all(
-                            color: Colors.grey.withValues(alpha: 0.2),
-                            width: 0.5,
-                          ),
+                    border: Border.all(
+                      color: isToday
+                          ? const Color(0xFF8CB2A4)
+                          : Colors.grey.withValues(alpha: 0.2),
+                      width: isToday ? 1.5 : 0.5,
+                    ),
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.only(top: 4, bottom: 2),
+                        padding: const EdgeInsets.only(top: 4),
                         child: Text(
-                          '$dayCounter',
-                          textAlign: TextAlign.center,
+                          '${date.day}',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: isToday
@@ -558,72 +643,132 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                           ),
                         ),
                       ),
-                      if (events.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 2),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: events.map((e) {
-                              final bgColor = _parseColor(e.backgroundColor);
-                              final textColor =
-                                  bgColor.computeLuminance() > 0.35
-                                  ? Colors.black87
-                                  : Colors.white;
-
-                              String prefix = '';
-                              if (e.isBlocked) {
-                                prefix = '🚫 ';
-                              } else {
-                                final lowerRoom = e.room.toLowerCase();
-                                if (lowerRoom.contains('airbnb')) {
-                                  prefix = '✈️ ';
-                                } else if (lowerRoom.contains('booking')) {
-                                  prefix = '🏨 ';
-                                }
-                              }
-
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 2),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 2,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: bgColor,
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                                child: Text(
-                                  '$prefix${e.room}',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w600,
-                                    color: textColor,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
                     ],
                   ),
                 ),
               ),
             ),
           );
-          dayCounter++;
         }
       }
+
       rows.add(
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: cells,
+        SizedBox(
+          height: finalHeight,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final colWidth = constraints.maxWidth / 7;
+              final eventWidgets = <Widget>[];
+
+              for (final e in weekActiveEvents) {
+                final slot = eventSlots[e] ?? 0;
+                int startCol = -1;
+                int endCol = -1;
+                final eventStart = DateTime(
+                  e.start.year,
+                  e.start.month,
+                  e.start.day,
+                );
+                final eventEnd = DateTime(e.end.year, e.end.month, e.end.day);
+
+                for (int i = 0; i < 7; i++) {
+                  final d = weekDates[i];
+                  if (d != null) {
+                    if (d.compareTo(eventStart) >= 0 &&
+                        d.compareTo(eventEnd) <= 0) {
+                      if (startCol == -1) startCol = i;
+                      endCol = i;
+                    }
+                  }
+                }
+
+                if (startCol != -1) {
+                  final span = endCol - startCol + 1;
+                  final leftOffset = startCol * colWidth;
+                  final width = span * colWidth;
+                  final topOffset = 26.0 + slot * 18.0;
+
+                  final bgColor = _parseColor(e.backgroundColor);
+                  final textColor = bgColor.computeLuminance() > 0.35
+                      ? Colors.black87
+                      : Colors.white;
+
+                  String prefix = '';
+                  if (e.isBlocked) {
+                    prefix = '🚫 ';
+                  } else {
+                    final lowerRoom = e.room.toLowerCase();
+                    if (lowerRoom.contains('airbnb')) {
+                      prefix = '✈️ ';
+                    } else if (lowerRoom.contains('booking')) {
+                      prefix = '🏨 ';
+                    }
+                  }
+
+                  final bool isActualStart = weekDates[startCol] == eventStart;
+                  final bool isActualEnd = weekDates[endCol] == eventEnd;
+
+                  eventWidgets.add(
+                    Positioned(
+                      left: leftOffset,
+                      top: topOffset,
+                      width: width,
+                      height: 16,
+                      child: GestureDetector(
+                        onTap: () => _showEventDetail(e),
+                        child: Container(
+                          margin: EdgeInsets.only(
+                            left: isActualStart ? 2.0 : 0.0,
+                            right: isActualEnd ? 2.0 : 0.0,
+                          ),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isActualStart ? 4.0 : 2.0,
+                            vertical: 1.0,
+                          ),
+                          decoration: BoxDecoration(
+                            color: bgColor,
+                            borderRadius: BorderRadius.horizontal(
+                              left: isActualStart
+                                  ? const Radius.circular(4)
+                                  : Radius.zero,
+                              right: isActualEnd
+                                  ? const Radius.circular(4)
+                                  : Radius.zero,
+                            ),
+                          ),
+                          child: Text(
+                            '$prefix${e.room.replaceFirst('Airbnb ', '').replaceFirst('Booking ', '')}',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.clip,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+              }
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: cells,
+                  ),
+                  ...eventWidgets,
+                ],
+              );
+            },
           ),
         ),
       );
     }
+
     return Column(children: rows);
   }
 
