@@ -684,8 +684,18 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
 
                 if (startCol != -1) {
                   final span = endCol - startCol + 1;
-                  final leftOffset = startCol * colWidth;
-                  final width = span * colWidth;
+                  final bool isActualStart = weekDates[startCol] == eventStart;
+                  final bool isActualEnd = weekDates[endCol] == eventEnd;
+
+                  final leftOffset =
+                      startCol * colWidth +
+                      (isActualStart ? colWidth / 2.0 : 0.0);
+                  // Subtract half column width if it starts this week, and subtract half if it ends this week
+                  final width =
+                      span * colWidth -
+                      (isActualStart ? colWidth / 2.0 : 0.0) -
+                      (isActualEnd ? colWidth / 2.0 : 0.0);
+
                   final topOffset = 26.0 + slot * 18.0;
 
                   final bgColor = _parseColor(e.backgroundColor);
@@ -704,9 +714,6 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                       prefix = '🏨 ';
                     }
                   }
-
-                  final bool isActualStart = weekDates[startCol] == eventStart;
-                  final bool isActualEnd = weekDates[endCol] == eventEnd;
 
                   eventWidgets.add(
                     Positioned(
