@@ -410,7 +410,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withOpacity(0.15),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color, size: 20),
@@ -427,17 +427,17 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: BorderRadius.circular(12),
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               '$count',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
-                color: Colors.grey[800],
+                color: color,
               ),
             ),
           ),
@@ -486,18 +486,23 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
           onTap: () => _showEventDetail(entry, isCheckout: true),
           borderRadius: BorderRadius.circular(16),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
+                  color: Colors.black.withOpacity(0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
               ],
-              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              border: Border.all(color: Colors.orange.withOpacity(0.2)),
             ),
             child: Row(
               children: [
@@ -508,15 +513,15 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                       Text(
                         entry.event.room,
                         style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.2,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.1,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         subtitle,
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        style: TextStyle(fontSize: 13, color: Colors.grey[600], fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
@@ -543,7 +548,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                         Text(
                           timeInfo,
                           style: TextStyle(
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                             fontSize: 13,
                             color: Colors.orange[900],
                           ),
@@ -566,18 +571,23 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
           onTap: () => _showEventDetail(entry, isCheckout: false),
           borderRadius: BorderRadius.circular(16),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
+                  color: Colors.black.withOpacity(0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
               ],
-              border: Border.all(color: Colors.grey[200]!),
+              border: Border.all(color: Colors.grey[100]!),
             ),
             child: Row(
               children: [
@@ -585,9 +595,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   child: Text(
                     event.room,
                     style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.2,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.1,
                     ),
                   ),
                 ),
@@ -597,7 +607,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF8CB2A4).withOpacity(0.1),
+                    color: const Color(0xFF8CB2A4).withOpacity(0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -606,13 +616,13 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                       const Icon(
                         Icons.access_time,
                         size: 16,
-                        color: Color(0xFF6D9B8C),
+                        color: Color(0xFF5A8B7B),
                       ),
                       const SizedBox(width: 4),
                       Text(
                         arrivalTime,
                         style: const TextStyle(
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w600,
                           fontSize: 13,
                           color: Color(0xFF4A7A6D),
                         ),
@@ -657,7 +667,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                         entry.event.room,
                         style: const TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -693,8 +703,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                           const Text(
                             'Next Guest Form Details',
                             style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -752,8 +763,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                         const Text(
                           'Form Details',
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -847,7 +859,7 @@ class _NoteEditorState extends State<_NoteEditor> {
       children: [
         const Text(
           'Notes',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
         ),
         const SizedBox(height: 8),
         TextField(
