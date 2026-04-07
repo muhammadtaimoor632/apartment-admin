@@ -512,7 +512,7 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
 
       for (int dow = 1; dow <= 7; dow++) {
         if ((week == 0 && dow < firstWeekday) || dayCounter > daysInMonth) {
-          cells.add(const Expanded(child: SizedBox(height: 42)));
+          cells.add(const Expanded(child: SizedBox(height: 80)));
         } else {
           final date = DateTime(year, month, dayCounter);
           final events = _eventsForDate(date);
@@ -525,53 +525,85 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                     ? () => _showDayEventsSheet(date, events)
                     : null,
                 child: Container(
-                  height: 42,
+                  constraints: const BoxConstraints(minHeight: 80),
                   margin: const EdgeInsets.all(1.5),
                   decoration: BoxDecoration(
                     color: isToday
                         ? const Color(0xFF8CB2A4).withValues(alpha: 0.15)
-                        : null,
-                    borderRadius: BorderRadius.circular(8),
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(4),
                     border: isToday
                         ? Border.all(color: const Color(0xFF8CB2A4), width: 1.5)
-                        : null,
+                        : Border.all(
+                            color: Colors.grey.withValues(alpha: 0.2),
+                            width: 0.5,
+                          ),
                   ),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        '$dayCounter',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: isToday
-                              ? FontWeight.w800
-                              : FontWeight.w500,
-                          color: isToday
-                              ? const Color(0xFF8CB2A4)
-                              : Colors.grey[800],
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 2),
+                        child: Text(
+                          '$dayCounter',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isToday
+                                ? FontWeight.w800
+                                : FontWeight.w500,
+                            color: isToday
+                                ? const Color(0xFF8CB2A4)
+                                : Colors.grey[800],
+                          ),
                         ),
                       ),
                       if (events.isNotEmpty)
                         Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: events
-                                .take(3)
-                                .map(
-                                  (e) => Container(
-                                    width: 6,
-                                    height: 6,
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 1,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _parseColor(e.backgroundColor),
-                                      shape: BoxShape.circle,
-                                    ),
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: events.map((e) {
+                              final bgColor = _parseColor(e.backgroundColor);
+                              final textColor =
+                                  bgColor.computeLuminance() > 0.35
+                                  ? Colors.black87
+                                  : Colors.white;
+
+                              String prefix = '';
+                              if (e.isBlocked) {
+                                prefix = '🚫 ';
+                              } else {
+                                final lowerRoom = e.room.toLowerCase();
+                                if (lowerRoom.contains('airbnb')) {
+                                  prefix = '✈️ ';
+                                } else if (lowerRoom.contains('booking')) {
+                                  prefix = '🏨 ';
+                                }
+                              }
+
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 2,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: bgColor,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                                child: Text(
+                                  '$prefix${e.room}',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                    color: textColor,
                                   ),
-                                )
-                                .toList(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
                           ),
                         ),
                     ],
@@ -583,7 +615,14 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
           dayCounter++;
         }
       }
-      rows.add(Row(children: cells));
+      rows.add(
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: cells,
+          ),
+        ),
+      );
     }
     return Column(children: rows);
   }
