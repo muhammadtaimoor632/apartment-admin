@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wild_atlantic_hub/models/booking_event.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
+import 'package:wild_atlantic_hub/utils/form_label_mapper.dart';
 import 'package:intl/intl.dart';
 
 class BookingCalendarPage extends StatefulWidget {
@@ -1536,13 +1537,15 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                             return true;
                           })
                           .map((entry) {
-                            final lk = entry.key.toLowerCase();
+                            final friendlyLabel = FormLabelMapper.getLabel(entry.key);
+                            final lk = friendlyLabel.toLowerCase();
                             final isSecret =
                                 lk.contains('lock') ||
                                 lk.contains('code') ||
-                                lk.contains('pin');
+                                lk.contains('pin') ||
+                                lk.contains('door');
                             return _detailField(
-                              entry.key,
+                              friendlyLabel,
                               entry.value.toString(),
                               isSecret: isSecret,
                             );

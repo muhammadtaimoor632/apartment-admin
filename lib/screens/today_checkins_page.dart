@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:wild_atlantic_hub/models/booking_event.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:wild_atlantic_hub/models/cleaning_details.dart';
+import 'package:wild_atlantic_hub/utils/form_label_mapper.dart';
 
 class TodayCheckinsPage extends StatefulWidget {
   const TodayCheckinsPage({super.key});
@@ -733,6 +734,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                                   return true;
                                 })
                                 .map((e) {
+                                  final friendlyLabel = FormLabelMapper.getLabel(e.key);
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 12),
                                     child: Column(
@@ -740,7 +742,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          e.key,
+                                          friendlyLabel,
                                           style: TextStyle(
                                             fontSize: 14,
                                             color: Colors.grey[600],
@@ -790,6 +792,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                                 return true;
                               })
                               .map((e) {
+                                final friendlyLabel = FormLabelMapper.getLabel(e.key);
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
                                   child: Column(
@@ -797,7 +800,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        e.key,
+                                        friendlyLabel,
                                         style: TextStyle(
                                           fontSize: 14,
                                           color: Colors.grey[600],
