@@ -372,7 +372,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
             const Color(0xFF2196F3),
             hosting.length,
           ),
-          ...hosting.map((e) => _buildCard(e, isCheckout: false)),
+          ...hosting.map(
+            (e) => _buildCard(e, isCheckout: false, isHosting: true),
+          ),
           const SizedBox(height: 32),
         ],
         if (cleaning.isNotEmpty) ...[
@@ -447,7 +449,11 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     );
   }
 
-  Widget _buildCard(_BookingEntry entry, {required bool isCheckout}) {
+  Widget _buildCard(
+    _BookingEntry entry, {
+    required bool isCheckout,
+    bool isHosting = false,
+  }) {
     if (isCheckout) {
       final String subtitle;
       final String timeInfo;
@@ -522,7 +528,11 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                       const SizedBox(height: 4),
                       Text(
                         subtitle,
-                        style: TextStyle(fontSize: 13, color: Colors.grey[600], fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ],
                   ),
@@ -565,6 +575,10 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     } else {
       final event = entry.event;
       final arrivalTime = _getArrivalTime(event.formData) ?? '3:00 PM';
+      final displayTime = isHosting
+          ? DateFormat('MMM d').format(event.end)
+          : arrivalTime;
+      final timeIcon = isHosting ? Icons.logout : Icons.access_time;
 
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
@@ -614,14 +628,10 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.access_time,
-                        size: 16,
-                        color: Color(0xFF5A8B7B),
-                      ),
+                      Icon(timeIcon, size: 16, color: const Color(0xFF5A8B7B)),
                       const SizedBox(width: 4),
                       Text(
-                        arrivalTime,
+                        displayTime,
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
@@ -734,7 +744,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                                   return true;
                                 })
                                 .map((e) {
-                                  final friendlyLabel = FormLabelMapper.getLabel(e.key);
+                                  final friendlyLabel =
+                                      FormLabelMapper.getLabel(e.key);
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 12),
                                     child: Column(
@@ -792,7 +803,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                                 return true;
                               })
                               .map((e) {
-                                final friendlyLabel = FormLabelMapper.getLabel(e.key);
+                                final friendlyLabel = FormLabelMapper.getLabel(
+                                  e.key,
+                                );
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
                                   child: Column(
@@ -862,7 +875,11 @@ class _NoteEditorState extends State<_NoteEditor> {
       children: [
         const Text(
           'Notes',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
         ),
         const SizedBox(height: 8),
         TextField(

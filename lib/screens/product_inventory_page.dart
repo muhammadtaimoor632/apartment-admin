@@ -17,8 +17,6 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
   // Brand colour palette
   static const Color _primary = Color(0xFF8CB2A4);
   static const Color _primaryDark = Color(0xFF5D8A7A);
-  static const Color _primaryLight = Color(0xFFB8D4CC);
-  static const Color _accent = Color(0xFF4A7C6F);
 
   @override
   void initState() {
@@ -64,105 +62,28 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
+      appBar: AppBar(
+        title: const Text(
+          'Inventory',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: _primaryDark,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => setState(() { _dataFuture = _fetchData(); }),
+          ),
+        ],
+      ),
       body: FutureBuilder<(List<CleaningDetails>, Map<String, int>)>(
         future: _dataFuture,
-        builder: (context, snapshot) {
-          return NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              _buildSliverAppBar(context, innerBoxIsScrolled),
-            ],
-            body: _buildBody(snapshot),
-          );
-        },
+        builder: (context, snapshot) => _buildBody(snapshot),
       ),
     );
   }
 
-  Widget _buildSliverAppBar(BuildContext context, bool innerBoxIsScrolled) {
-    return SliverAppBar(
-      expandedHeight: 160,
-      floating: false,
-      pinned: true,
-      elevation: 0,
-      backgroundColor: _primaryDark,
-      iconTheme: const IconThemeData(color: Colors.white),
-      flexibleSpace: FlexibleSpaceBar(
-        titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'Inventory',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-              ),
-            ),
-            Text(
-              'Select an apartment',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                fontWeight: FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [_accent, _primary, _primaryLight],
-            ),
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                right: -30,
-                top: -30,
-                child: Container(
-                  width: 180,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.07),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 40,
-                bottom: -20,
-                child: Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.05),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: -20,
-                bottom: 0,
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.06),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildBody(
       AsyncSnapshot<(List<CleaningDetails>, Map<String, int>)> snapshot) {
