@@ -882,22 +882,10 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
       );
     }
 
-    // Currently hosting: started BEFORE today and still active
-    final currentlyHosting = relevantEvents.where((e) {
-      final startDate = DateTime(e.start.year, e.start.month, e.start.day);
-      return startDate.isBefore(today);
-    }).toList();
-
     // Checking in today: start date is exactly today
     final todayCheckIns = relevantEvents.where((e) {
       final startDate = DateTime(e.start.year, e.start.month, e.start.day);
       return startDate.isAtSameMomentAs(today);
-    }).toList();
-
-    // Upcoming: start date is after today
-    final upcomingBookings = relevantEvents.where((e) {
-      final startDate = DateTime(e.start.year, e.start.month, e.start.day);
-      return startDate.isAfter(today);
     }).toList();
 
     return Column(
@@ -948,33 +936,6 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
             ),
           ),
           ...todayCheckIns.map((event) => _buildEventCard(event)),
-          if (currentlyHosting.isNotEmpty || upcomingBookings.isNotEmpty)
-            const SizedBox(height: 10),
-        ],
-        if (currentlyHosting.isNotEmpty) ...[
-          Text(
-            'Currently Hosting',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey[700],
-            ),
-          ),
-          const SizedBox(height: 10),
-          ...currentlyHosting.map((event) => _buildEventCard(event)),
-          if (upcomingBookings.isNotEmpty) const SizedBox(height: 10),
-        ],
-        if (upcomingBookings.isNotEmpty) ...[
-          Text(
-            'Upcoming Booking',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey[700],
-            ),
-          ),
-          const SizedBox(height: 10),
-          ...upcomingBookings.map((event) => _buildEventCard(event)),
         ],
       ],
     );
