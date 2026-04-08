@@ -186,14 +186,33 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
-        // Calendar selector tabs (top level selector)
-        if (_calendars.length > 1) _buildCalendarSelector(),
+        Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Calendar selector tabs
+              if (_calendars.length > 1) _buildCalendarSelector(),
 
-        // Summary card for the currently selected property
-        if (_activeCalendar != null) ...[
-          _buildPropertyStatsCard(_activeCalendar!),
-          const SizedBox(height: 16),
-        ],
+              if (_activeCalendar != null) ...[
+                if (_calendars.length > 1)
+                  const Divider(height: 1, color: Color(0xFFF0F0F0)),
+                // Summary card for the currently selected property
+                _buildPropertyStatsCard(_activeCalendar!),
+              ],
+            ],
+          ),
+        ),
 
         // Calendar grid
         _buildCalendarGrid(),
@@ -213,57 +232,41 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
   // ─── Calendar selector ──────────────────────────────────────────
 
   Widget _buildCalendarSelector() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Row(
-          children: _calendars.asMap().entries.map((entry) {
-            final idx = entry.key;
-            final cal = entry.value;
-            final isSelected = idx == _selectedCalendarIndex;
-            return Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedCalendarIndex = idx),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFF8CB2A4)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    cal.name,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                      color: isSelected ? Colors.white : Colors.grey[600],
-                    ),
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        children: _calendars.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final cal = entry.value;
+          final isSelected = idx == _selectedCalendarIndex;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedCalendarIndex = idx),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color(0xFF8CB2A4)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  cal.name,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected ? Colors.white : Colors.grey[600],
                   ),
                 ),
               ),
-            );
-          }).toList(),
-        ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -292,88 +295,36 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     // Blocked slots
     final blockedCount = cal.events.where((e) => e.isBlocked).length;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      child: Row(
         children: [
-          // Property header banner
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF8CB2A4), Color(0xFF6D9B8C)],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.apartment, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    cal.name,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          _propertyStat(
+            label: 'Total',
+            value: '$totalThisYear',
+            icon: Icons.event_note,
+            color: const Color(0xFF6C63FF),
           ),
-
-          // Stats row
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-            child: Row(
-              children: [
-                _propertyStat(
-                  label: 'Total',
-                  value: '$totalThisYear',
-                  icon: Icons.event_note,
-                  color: const Color(0xFF6C63FF),
-                ),
-                _statDivider(),
-                _propertyStat(
-                  label: 'Upcoming',
-                  value: '$upcomingCount',
-                  icon: Icons.upcoming_outlined,
-                  color: const Color(0xFFFF8F00),
-                ),
-                _statDivider(),
-                _propertyStat(
-                  label: 'Active',
-                  value: '$activeCount',
-                  icon: Icons.meeting_room_outlined,
-                  color: const Color(0xFF00C853),
-                ),
-                _statDivider(),
-                _propertyStat(
-                  label: 'Blocked',
-                  value: '$blockedCount',
-                  icon: Icons.block,
-                  color: const Color(0xFF78909C),
-                ),
-              ],
-            ),
+          _statDivider(),
+          _propertyStat(
+            label: 'Upcoming',
+            value: '$upcomingCount',
+            icon: Icons.upcoming_outlined,
+            color: const Color(0xFFFF8F00),
+          ),
+          _statDivider(),
+          _propertyStat(
+            label: 'Active',
+            value: '$activeCount',
+            icon: Icons.meeting_room_outlined,
+            color: const Color(0xFF00C853),
+          ),
+          _statDivider(),
+          _propertyStat(
+            label: 'Blocked',
+            value: '$blockedCount',
+            icon: Icons.block,
+            color: const Color(0xFF78909C),
           ),
         ],
       ),
@@ -1498,7 +1449,9 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                             return true;
                           })
                           .map((entry) {
-                            final friendlyLabel = FormLabelMapper.getLabel(entry.key);
+                            final friendlyLabel = FormLabelMapper.getLabel(
+                              entry.key,
+                            );
                             final lk = friendlyLabel.toLowerCase();
                             final isSecret =
                                 lk.contains('lock') ||

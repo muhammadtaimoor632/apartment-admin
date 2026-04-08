@@ -26,7 +26,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
 
   Future<(List<CleaningDetails>, Map<String, int>)> _fetchData() async {
     final apartments = await ApiService.fetchCleaningDetails();
-    
+
     // Fetch individual inventory item counts per apartment
     final inventoryCounts = <String, int>{};
     await Future.wait(
@@ -39,7 +39,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
         }
       }),
     );
-    
+
     return (apartments, inventoryCounts);
   }
 
@@ -73,7 +73,9 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() { _dataFuture = _fetchData(); }),
+            onPressed: () => setState(() {
+              _dataFuture = _fetchData();
+            }),
           ),
         ],
       ),
@@ -84,13 +86,11 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
     );
   }
 
-
   Widget _buildBody(
-      AsyncSnapshot<(List<CleaningDetails>, Map<String, int>)> snapshot) {
+    AsyncSnapshot<(List<CleaningDetails>, Map<String, int>)> snapshot,
+  ) {
     if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Center(
-        child: CircularProgressIndicator(color: _primary),
-      );
+      return const Center(child: CircularProgressIndicator(color: _primary));
     }
     if (snapshot.hasError) {
       return Center(
@@ -128,15 +128,10 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
         });
         return _dataFuture;
       },
-      child: GridView.builder(
+      child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 14,
-          mainAxisSpacing: 14,
-          childAspectRatio: 0.82,
-        ),
         itemCount: apartments.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 14),
         itemBuilder: (context, index) {
           final apartment = apartments[index];
           final inventoryCount = inventoryCounts[apartment.id] ?? 0;
@@ -171,24 +166,26 @@ class _ApartmentInventoryCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        height: 100,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: _primary.withValues(alpha: 0.18),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
+              color: _primary.withValues(alpha: 0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          borderRadius: BorderRadius.circular(16),
+          child: Row(
             children: [
-              // ── Image strip ──────────────────────────────────────────
-              Expanded(
+              // ── Image ──────────────────────────────────────────
+              SizedBox(
+                width: 100,
+                height: 100,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -196,80 +193,69 @@ class _ApartmentInventoryCard extends StatelessWidget {
                         ? Image.network(
                             apartment.imageUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                _placeholderBg(),
+                            errorBuilder: (_, __, ___) => _placeholderBg(),
                           )
                         : _placeholderBg(),
-                    // subtle gradient overlay so text is readable
-                    Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.3),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    // item count badge
-                    Positioned(
-                      top: 10,
-                      right: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: _primaryDark.withValues(alpha: 0.85),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '$inventoryCount item${inventoryCount == 1 ? '' : 's'}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
 
-              // ── Info row ─────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 10, 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
+              // ── Info column ─────────────────────────────────────────────
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
                         apartment.name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                          fontSize: 15,
                           color: Color(0xFF2D3E3A),
                         ),
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: _primary.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _primary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$inventoryCount item${inventoryCount == 1 ? '' : 's'}',
+                          style: const TextStyle(
+                            color: _primaryDark,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 12,
-                        color: _primaryDark,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+              ),
+
+              // ── Arrow ─────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 14,
+                    color: _primaryDark,
+                  ),
                 ),
               ),
             ],
@@ -282,8 +268,11 @@ class _ApartmentInventoryCard extends StatelessWidget {
   Widget _placeholderBg() {
     return Container(
       color: const Color(0xFFDCEDE8),
-      child: const Icon(Icons.apartment_rounded,
-          color: Color(0xFF8CB2A4), size: 56),
+      child: const Icon(
+        Icons.apartment_rounded,
+        color: Color(0xFF8CB2A4),
+        size: 56,
+      ),
     );
   }
 }

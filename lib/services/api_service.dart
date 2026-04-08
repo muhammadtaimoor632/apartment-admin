@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:wild_atlantic_hub/models/inventory_item.dart';
 import 'package:wild_atlantic_hub/models/cleaning_details.dart';
@@ -101,12 +102,25 @@ class ApiService {
   static Future<List<InventoryItem>> fetchInventoryForApartment(
     String apartmentId,
   ) async {
-    final uri = Uri.parse(
-      '$_wordpressUrl$_apiNamespace/inventory/$apartmentId',
-    );
+    final encodedId = Uri.encodeComponent(apartmentId);
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/inventory/$encodedId');
     final response = await http.get(uri, headers: _authHeaders);
     if (response.statusCode == 200) {
-      final List<dynamic> decodedData = json.decode(response.body);
+      final decoded = json.decode(response.body);
+      // Handle debug response format (map with 'items' key)
+      List<dynamic> decodedData;
+      if (decoded is Map && decoded.containsKey('items')) {
+        // Print debug info to console
+        debugPrint('=== INVENTORY DEBUG ===');
+        debugPrint('Raw param: ${decoded['debug_raw_param']}');
+        debugPrint('Decoded ID: ${decoded['debug_decoded_id']}');
+        debugPrint('All IDs in DB: ${decoded['debug_all_ids_in_db']}');
+        debugPrint('Items count: ${(decoded['items'] as List).length}');
+        debugPrint('=======================');
+        decodedData = decoded['items'] as List<dynamic>;
+      } else {
+        decodedData = decoded as List<dynamic>;
+      }
       return decodedData
           .map(
             (item) => InventoryItem.fromJson(item, fallbackAptId: apartmentId),

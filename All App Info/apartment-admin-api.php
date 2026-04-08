@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Apartment Admin API
  * Description: REST API endpoints for the Wild Atlantic Hub apartment admin app. Handles cleaning status, ratings, feedback, inventory management, and booking notes.
- * Version:     3.2.0
+ * Version:     3.2.1
  * Author:      Wild Atlantic Apartments
  */
 
@@ -77,7 +77,7 @@ function aa_create_tables()
         quantity        INT          NOT NULL DEFAULT 0
     ) $charset;";
 
-    // NEW: Booking Notes table
+    // Booking Notes table
     $notes_table = $wpdb->prefix . 'apartment_booking_notes';
     $sql_notes = "CREATE TABLE IF NOT EXISTS $notes_table (
         id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -92,16 +92,16 @@ function aa_create_tables()
     dbDelta($sql_history);
     dbDelta($sql_log);
     dbDelta($sql_inventory);
-    dbDelta($sql_notes); // Create the new notes table
+    dbDelta($sql_notes);
 }
 
 // Auto-run table creation if version updates
 add_action('admin_init', 'aa_check_db_version');
 function aa_check_db_version()
 {
-    if (get_option('aa_db_version') !== '3.2.0') {
+    if (get_option('aa_db_version') !== '3.2.1') {
         aa_create_tables();
-        update_option('aa_db_version', '3.2.0');
+        update_option('aa_db_version', '3.2.1');
     }
 }
 
@@ -147,7 +147,7 @@ function aa_register_routes()
     ]);
 
     // Inventory Management Routes
-    register_rest_route($ns, '/inventory/(?P<apartment_id>[a-zA-Z0-9_-]+)', [
+    register_rest_route($ns, '/inventory/(?P<apartment_id>[a-zA-Z0-9_%+ -]+)', [
         'methods' => 'GET',
         'callback' => 'aa_get_inventory',
         'permission_callback' => 'aa_check_auth',
@@ -171,7 +171,7 @@ function aa_register_routes()
         'permission_callback' => 'aa_check_auth',
     ]);
 
-    // NEW: Booking Notes Routes
+    // Booking Notes Routes
     register_rest_route($ns, '/booking-notes/get', [
         'methods' => 'GET',
         'callback' => 'aa_get_booking_note',
@@ -445,11 +445,22 @@ function aa_save_feedback(WP_REST_Request $request)
 function aa_get_inventory(WP_REST_Request $request)
 {
     global $wpdb;
-    $apartment_id = sanitize_text_field($request->get_param('apartment_id'));
+    $raw_param = $request->get_param('apartment_id');
+    // rawurldecode FIRST so %20 → space, THEN sanitize (sanitize_text_field strips %XX sequences)
+    $apartment_id = sanitize_text_field(rawurldecode($raw_param));
     $table = $wpdb->prefix . 'apartment_inventory';
 
-    $results = $wpdb->get_results($wpdb->prepare("SELECT id, item_name, item_image_url, shop_url, quantity FROM $table WHERE apartment_id = %s", $apartment_id), ARRAY_A);
-    return rest_ensure_response($results);
+    $results = $wpdb->get_results($wpdb->prepare("SELECT id, item_name, item_image_url, shop_url, quantity, apartment_id FROM $table WHERE apartment_id = %s", $apartment_id), ARRAY_A);
+
+    // DEBUG: also return all distinct apartment_ids so we can see what's stored
+    $all_ids = $wpdb->get_col("SELECT DISTINCT apartment_id FROM $table");
+
+    return rest_ensure_response([
+        'debug_raw_param' => $raw_param,
+        'debug_decoded_id' => $apartment_id,
+        'debug_all_ids_in_db' => $all_ids,
+        'items' => $results ?: [],
+    ]);
 }
 
 function aa_update_inventory(WP_REST_Request $request)
@@ -521,38 +532,35 @@ function aa_delete_inventory_api(WP_REST_Request $request)
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. NEW API CALLBACKS (BOOKING NOTES)
+// 6. API CALLBACKS (BOOKING NOTES) - FIXED
 // ─────────────────────────────────────────────────────────────────────────────
 
 function aa_get_booking_note(WP_REST_Request $request)
 {
     global $wpdb;
-    // Explicitly use the requested table name
-    $table = 'aqu_apartment_booking_notes';
-    $booking_key = sanitize_text_field($request->get_param('booking_key')); // Expected e.g. "Room 1|2024-04-06"
+    // FIXED: Use dynamic WordPress prefix instead of hardcoded 'aqu_'
+    $table = $wpdb->prefix . 'apartment_booking_notes';
+    $booking_key = sanitize_text_field($request->get_param('booking_key'));
 
     if (empty($booking_key)) {
         return new WP_Error('missing_param', 'booking_key is required.', ['status' => 400]);
     }
 
-    // Try selecting column 'note_content', and fallback to 'note' if there's an issue conceptually, 
-    // but assuming 'note_content' based on previous edits.
     $note = $wpdb->get_var($wpdb->prepare("SELECT note_content FROM $table WHERE booking_key = %s", $booking_key));
 
     return rest_ensure_response([
         'booking_key' => $booking_key,
-        'note' => $note ? $note : '' // Returning 'note' to match Flutter app's expectation
+        'note' => $note ? $note : ''
     ]);
 }
 
 function aa_save_booking_note(WP_REST_Request $request)
 {
     global $wpdb;
-    // Explicitly use the requested table name
-    $table = 'aqu_apartment_booking_notes';
+    // FIXED: Use dynamic WordPress prefix instead of hardcoded 'aqu_'
+    $table = $wpdb->prefix . 'apartment_booking_notes';
 
     $booking_key = sanitize_text_field($request->get_param('booking_key'));
-    // Flutter sends 'note'
     $note_content = sanitize_textarea_field($request->get_param('note'));
     $now = current_time('mysql');
 
@@ -560,7 +568,6 @@ function aa_save_booking_note(WP_REST_Request $request)
         return new WP_Error('missing_param', 'booking_key is required.', ['status' => 400]);
     }
 
-    // Check if a note already exists for this booking combination
     $exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE booking_key = %s", $booking_key));
 
     if ($exists) {
@@ -635,7 +642,8 @@ function aa_admin_page()
             $id = sanitize_title($_POST['delete_apt_id']);
             $apts = json_decode(get_option('aa_apartments', '[]'), true);
             $apts = array_filter($apts, function ($a) use ($id) {
-                return $a['id'] !== $id; });
+                return $a['id'] !== $id;
+            });
             update_option('aa_apartments', wp_json_encode(array_values($apts)));
             echo '<div class="updated"><p>Deleted successfully.</p></div>';
         }
@@ -839,7 +847,8 @@ function aa_admin_page()
                         <td>
                             <?php
                             $matched_apt = array_filter($apartments, function ($a) use ($item) {
-                                return $a['id'] === $item['apartment_id']; });
+                                return $a['id'] === $item['apartment_id'];
+                            });
                             $matched_apt = reset($matched_apt);
                             echo $matched_apt ? esc_html($matched_apt['name']) : esc_html($item['apartment_id']);
                             ?>
@@ -940,7 +949,7 @@ function aa_admin_page()
             $tables = [
                 $wpdb->prefix . 'apartment_cleaning_status',
                 $wpdb->prefix . 'apartment_inventory',
-                $wpdb->prefix . 'apartment_booking_notes', // NEW
+                $wpdb->prefix . 'apartment_booking_notes',
                 'wp_apartment_cleaning_logs'
             ];
             foreach ($tables as $tbl) {
@@ -961,84 +970,16 @@ function aa_admin_page()
         </div>
     </div>
 
-    <script>
-        jQuery(document).ready(function ($) {
-            // Tab Switcher
-            $('.nav-tab').click(function (e) {
-                e.preventDefault();
-                $('.nav-tab').removeClass('nav-tab-active');
-                $(this).addClass('nav-tab-active');
-                $('.aa-tab-content').removeClass('active');
-                $($(this).attr('href')).addClass('active');
-            });
-
-            // WP Media Uploader
-            $('.upload-image-btn').click(function (e) {
-                e.preventDefault();
-                var targetInput = $(this).siblings('.image-url-input');
-                var mediaUploader = wp.media({ title: 'Choose Image', button: { text: 'Select' }, multiple: false });
-                mediaUploader.on('select', function () {
-                    var attachment = mediaUploader.state().get('selection').first().toJSON();
-                    targetInput.val(attachment.url);
-                });
-                mediaUploader.open();
-            });
-
-            // Inventory Property Filter
-            $('#inv-filter-apt').on('change', function () {
-                var selectedApt = $(this).val();
-                if (selectedApt === 'all') {
-                    $('.inv-row').show();
-                } else {
-                    $('.inv-row').hide();
-                    $('.inv-row[data-apt="' + selectedApt + '"]').show();
-                }
-            });
-
-            // Edit Inventory Button Logic
-            $('.edit-inv-btn').on('click', function (e) {
-                e.preventDefault();
-                var btn = $(this);
-
-                // Populate Form Fields
-                $('#form_inv_action').val('edit_inventory');
-                $('#form_inv_id').val(btn.data('id'));
-                $('select[name="inv_apt_id"]').val(btn.data('apt'));
-                $('input[name="inv_name"]').val(btn.data('name'));
-                $('input[name="inv_image"]').val(btn.data('img'));
-                $('input[name="inv_url"]').val(btn.data('url'));
-                $('input[name="inv_qty"]').val(btn.data('qty'));
-
-                // Change UI text
-                $('#inv-form-title').text('Edit Inventory Item');
-                $('#inv-submit-btn').text('Update Inventory Item');
-                $('#cancel-edit-btn').show();
-
-                // Smooth scroll to the form
-                $('html, body').animate({
-                    scrollTop: $("#inv-form-title").offset().top - 50
-                }, 500);
-            });
-
-            // Cancel Edit Logic
-            $('#cancel-edit-btn').on('click', function (e) {
-                e.preventDefault();
-
-                // Reset Form Fields
-                $('#form_inv_action').val('add_inventory');
-                $('#form_inv_id').val('');
-                $('select[name="inv_apt_id"]').val('');
-                $('input[name="inv_name"]').val('');
-                $('input[name="inv_image"]').val('');
-                $('input[name="inv_url"]').val('');
-                $('input[name="inv_qty"]').val('0');
-
-                // Reset UI text
-                $('#inv-form-title').text('Add New Inventory Item');
-                $('#inv-submit-btn').text('Add Inventory Item');
-                $(this).hide();
-            });
-        });
+    <script>     jQuery(document).ready(function ($) {         // Tab Switcher         $('.nav-tab').click(function (e) {             e.preventDefault();             $('.nav-tab').removeClass('nav-tab-active');             $(this).addClass('nav-tab-active');             $('.aa-tab-content').removeClass('active');             $($(this).attr('href')).addClass('active');         });
+             // WP Media Uploader         $('.upload-image-btn').click(function (e) {             e.preventDefault();             var targetInput = $(this).siblings('.image-url-input');             var mediaUploader = wp.media({ title: 'Choose Image', button: { text: 'Select' }, multiple: false });             mediaUploader.on('select', function () {                 var attachment = mediaUploader.state().get('selection').first().toJSON();                 targetInput.val(attachment.url);             });             mediaUploader.open();         });
+             // Inventory Property Filter         $('#inv-filter-apt').on('change', function () {             var selectedApt = $(this).val();             if (selectedApt === 'all') {                 $('.inv-row').show();             } else {                 $('.inv-row').hide();                 $('.inv-row[data-apt="' + selectedApt + '"]').show();             }         });
+             // Edit Inventory Button Logic         $('.edit-inv-btn').on('click', function (e) {             e.preventDefault();             var btn = $(this);
+                 // Populate Form Fields             $('#form_inv_action').val('edit_inventory');             $('#form_inv_id').val(btn.data('id'));             $('select[name="inv_apt_id"]').val(btn.data('apt'));             $('input[name="inv_name"]').val(btn.data('name'));             $('input[name="inv_image"]').val(btn.data('img'));             $('input[name="inv_url"]').val(btn.data('url'));             $('input[name="inv_qty"]').val(btn.data('qty'));
+                 // Change UI text             $('#inv-form-title').text('Edit Inventory Item');             $('#inv-submit-btn').text('Update Inventory Item');             $('#cancel-edit-btn').show();
+                 // Smooth scroll to the form             $('html, body').animate({                 scrollTop: $("#inv-form-title").offset().top - 50             }, 500);         });
+             // Cancel Edit Logic         $('#cancel-edit-btn').on('click', function (e) {             e.preventDefault();
+                 // Reset Form Fields             $('#form_inv_action').val('add_inventory');             $('#form_inv_id').val('');             $('select[name="inv_apt_id"]').val('');             $('input[name="inv_name"]').val('');             $('input[name="inv_image"]').val('');             $('input[name="inv_url"]').val('');             $('input[name="inv_qty"]').val('0');
+                 // Reset UI text             $('#inv-form-title').text('Add New Inventory Item');             $('#inv-submit-btn').text('Add Inventory Item');             $(this).hide();         });     });
     </script>
     <?php
 }
