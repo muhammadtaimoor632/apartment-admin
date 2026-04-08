@@ -308,10 +308,6 @@ class _GlobalInventoryNotesDialog extends StatefulWidget {
 
 class _GlobalInventoryNotesDialogState
     extends State<_GlobalInventoryNotesDialog> {
-  // We'll reuse the "Admin|GlobalNote" key, or a specific "Admin|InventoryNote".
-  // Using Admin|GlobalNote keeps it synced with the Today page notes.
-  // We can use ApiService.fetchAdminNote and saveAdminNote.
-
   bool _loading = true;
   bool _saving = false;
   final _ctrl = TextEditingController();
@@ -321,7 +317,7 @@ class _GlobalInventoryNotesDialogState
   @override
   void initState() {
     super.initState();
-    ApiService.fetchAdminNote().then((noteStr) {
+    ApiService.fetchGlobalInventoryNote().then((noteStr) {
       if (mounted) {
         setState(() {
           _ctrl.text = noteStr;
@@ -333,7 +329,7 @@ class _GlobalInventoryNotesDialogState
 
   Future<void> _saveNotes() async {
     setState(() => _saving = true);
-    final ok = await ApiService.saveAdminNote(_ctrl.text);
+    final ok = await ApiService.saveGlobalInventoryNote(_ctrl.text);
     if (mounted) {
       setState(() => _saving = false);
       if (ok) {

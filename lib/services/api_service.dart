@@ -281,6 +281,34 @@ class ApiService {
     return response.statusCode == 200;
   }
 
+  // --- Global Inventory Notes ---
+
+  static Future<String> fetchGlobalInventoryNote() async {
+    const key = 'Admin|GlobalInventoryNote';
+    final uri = Uri.parse(
+      '$_wordpressUrl$_apiNamespace/booking-notes/get?booking_key=$key',
+    );
+    final response = await http.get(uri, headers: _authHeaders);
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return (data['note'] ?? '') as String;
+    }
+    return '';
+  }
+
+  static Future<bool> saveGlobalInventoryNote(String note) async {
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/booking-notes/save');
+    final response = await http.post(
+      uri,
+      headers: _authHeaders,
+      body: json.encode({
+        'booking_key': 'Admin|GlobalInventoryNote',
+        'note': note,
+      }),
+    );
+    return response.statusCode == 200;
+  }
+
   // --- Inventory Notes ---
 
   static Future<String> fetchInventoryNote(String apartmentId) async {
