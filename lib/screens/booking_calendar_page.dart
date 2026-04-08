@@ -1169,375 +1169,188 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
       useRootNavigator: false,
       useSafeArea: true,
       builder: (ctx) {
-        bool _noteLoading = true;
-        bool _noteSaving = false;
-        final TextEditingController _noteCtrl = TextEditingController();
-
-        return StatefulBuilder(
-          builder: (ctx2, setSheetState) {
-            if (_noteLoading && !event.isBlocked) {
-              ApiService.fetchBookingNote(event).then((n) {
-                if (ctx2.mounted) {
-                  setSheetState(() {
-                    _noteCtrl.text = n;
-                    _noteLoading = false;
-                  });
-                }
-              });
-            } else if (event.isBlocked && _noteLoading) {
-              Future.microtask(() {
-                if (ctx2.mounted) setSheetState(() => _noteLoading = false);
-              });
-            }
-
-            return Container(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.9,
-              ),
-              margin: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.85,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                ),
+                child: Row(
                   children: [
-                    // Close button
-                    Row(
-                      children: [
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: () => Navigator.of(ctx2).pop(),
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[200],
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.close,
-                              size: 20,
-                              color: Colors.grey[600],
-                            ),
-                          ),
+                    Expanded(
+                      child: Text(
+                        event.room,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
                         ),
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 8),
-
-                    // Title row
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            event.room,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        _platformBadge(event.platform, event.isBlocked),
-                      ],
+                    _platformBadge(event.platform, event.isBlocked),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      splashRadius: 20,
                     ),
-                    const SizedBox(height: 20),
-
-                    // ── Notes Section (real bookings only) ──────────────
-                    if (!event.isBlocked) ...[
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF8E1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.sticky_note_2_outlined,
-                              size: 16,
-                              color: Color(0xFFF9A825),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Notes',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                          const Spacer(),
-                          if (_noteLoading)
-                            const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0xFF8CB2A4),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFFDE7),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: const Color(0xFFFFEE58),
-                            width: 1.2,
-                          ),
-                        ),
-                        child: TextField(
-                          controller: _noteCtrl,
-                          minLines: 3,
-                          maxLines: 6,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF212529),
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Add notes about this guest or booking…',
-                            hintStyle: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[400],
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.all(14),
-                          ),
-                          onChanged: (_) {},
-                          enabled: !_noteLoading,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _noteSaving || _noteLoading
-                              ? null
-                              : () async {
-                                  setSheetState(() => _noteSaving = true);
-                                  final ok = await ApiService.saveBookingNote(
-                                    event,
-                                    _noteCtrl.text.trim(),
-                                  );
-                                  if (ctx2.mounted) {
-                                    setSheetState(() => _noteSaving = false);
-                                    ScaffoldMessenger.of(ctx2).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          ok
-                                              ? 'Note saved ✓'
-                                              : 'Failed to save note',
-                                        ),
-                                        backgroundColor: ok
-                                            ? const Color(0xFF8CB2A4)
-                                            : Colors.red,
-                                        duration: const Duration(seconds: 2),
-                                      ),
-                                    );
-                                  }
-                                },
-                          icon: _noteSaving
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.save_outlined, size: 18),
-                          label: Text(_noteSaving ? 'Saving…' : 'Save Note'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF8CB2A4),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-
-                    // Dates row
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _detailField(
-                            'Check-in',
-                            dateFormatter.format(event.start),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _detailField(
-                            'Check-out',
-                            dateFormatter.format(event.end),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    if (!event.isBlocked && event.nights > 0)
-                      _detailField(
-                        'Duration',
-                        '${event.nights} night${event.nights == 1 ? '' : 's'}',
-                      ),
-
-                    if (event.isBlocked)
-                      Container(
-                        margin: const EdgeInsets.only(top: 16),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.block, color: Colors.grey[500]),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'This slot is manually blocked and not available for booking.',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                    // Form data (guest details)
-                    if (!event.isBlocked && event.formData.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      Text(
-                        'Guest Details',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      ...event.formData.entries
-                          .where((e) {
-                            if (e.value == null || e.value.toString().isEmpty)
-                              return false;
-                            final lk = e.key.toLowerCase().replaceAll(' ', '');
-                            if (lk.contains('nonce') ||
-                                lk.contains('referer') ||
-                                lk.contains('token') ||
-                                lk.contains('hash') ||
-                                lk.contains('wphttp') ||
-                                lk.contains('fluentform') &&
-                                    lk.contains('nonce') ||
-                                lk.contains('_wp_') ||
-                                lk.contains('formid') ||
-                                lk.contains('__') ||
-                                lk.startsWith('utm'))
-                              return false;
-                            return true;
-                          })
-                          .map((entry) {
-                            final friendlyLabel = FormLabelMapper.getLabel(
-                              entry.key,
-                            );
-                            final lk = friendlyLabel.toLowerCase();
-                            final isSecret =
-                                lk.contains('lock') ||
-                                lk.contains('code') ||
-                                lk.contains('pin') ||
-                                lk.contains('door');
-                            return _detailField(
-                              friendlyLabel,
-                              entry.value.toString(),
-                              isSecret: isSecret,
-                            );
-                          }),
-                    ],
-
-                    if (!event.isBlocked && event.formData.isEmpty)
-                      Container(
-                        margin: const EdgeInsets.only(top: 16),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.amber[50],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.info_outline, color: Colors.amber[700]),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'No guest details found in Fluent Forms for this check-in date.',
-                                style: TextStyle(
-                                  color: Colors.amber[800],
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                    const SizedBox(height: 12),
                   ],
                 ),
               ),
-            );
-          },
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _detailField(
+                        'Check-in',
+                        dateFormatter.format(event.start),
+                      ),
+                      _detailField(
+                        'Check-out',
+                        dateFormatter.format(event.end),
+                      ),
+                      if (!event.isBlocked && event.nights > 0)
+                        _detailField(
+                          'Duration',
+                          '${event.nights} night${event.nights == 1 ? '' : 's'}',
+                        ),
+                      if (event.isBlocked)
+                        Container(
+                          margin: const EdgeInsets.only(top: 16),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.block, color: Colors.grey[500]),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'This slot is manually blocked and not available for booking.',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (!event.isBlocked && event.formData.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        Text(
+                          'Guest Details',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        ...event.formData.entries
+                            .where((e) {
+                              if (e.value == null || e.value.toString().isEmpty)
+                                return false;
+                              final lk = e.key.toLowerCase().replaceAll(
+                                ' ',
+                                '',
+                              );
+                              if (lk.contains('nonce') ||
+                                  lk.contains('referer') ||
+                                  lk.contains('token') ||
+                                  lk.contains('hash') ||
+                                  lk.contains('wphttp') ||
+                                  (lk.contains('fluentform') &&
+                                      lk.contains('nonce')) ||
+                                  lk.contains('_wp_') ||
+                                  lk.contains('formid') ||
+                                  lk.contains('__') ||
+                                  lk.startsWith('utm'))
+                                return false;
+                              return true;
+                            })
+                            .map((entry) {
+                              final friendlyLabel = FormLabelMapper.getLabel(
+                                entry.key,
+                              );
+                              final lk = friendlyLabel.toLowerCase();
+                              final isSecret =
+                                  lk.contains('lock') ||
+                                  lk.contains('code') ||
+                                  lk.contains('pin') ||
+                                  lk.contains('door');
+                              return _detailField(
+                                friendlyLabel,
+                                entry.value.toString(),
+                                isSecret: isSecret,
+                              );
+                            }),
+                      ],
+                      if (!event.isBlocked && event.formData.isEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(top: 16),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.amber[50],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: Colors.amber[700],
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'No guest details found in Fluent Forms for this check-in date.',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
   }
 
   Widget _detailField(String label, String value, {bool isSecret = false}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isSecret ? const Color(0xFFFFF5F5) : const Color(0xFFF8F9FA),
-        border: Border.all(
-          color: isSecret ? const Color(0xFFFFCDD2) : const Color(0xFFE9ECEF),
-        ),
-        borderRadius: BorderRadius.circular(10),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             isSecret ? '🔐 $label' : label,
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
-              color: isSecret ? const Color(0xFFC62828) : Colors.grey[500],
+              fontSize: 14,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: isSecret ? 17 : 15,
-              fontWeight: isSecret ? FontWeight.w800 : FontWeight.w500,
-              letterSpacing: isSecret ? 2 : 0,
-              fontFamily: isSecret ? 'monospace' : null,
-              color: isSecret
-                  ? const Color(0xFFC62828)
-                  : const Color(0xFF212529),
-            ),
-          ),
+          Text(value, style: const TextStyle(fontSize: 16)),
         ],
       ),
     );
