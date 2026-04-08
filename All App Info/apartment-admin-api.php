@@ -970,16 +970,78 @@ function aa_admin_page()
         </div>
     </div>
 
-    <script>     jQuery(document).ready(function ($) {         // Tab Switcher         $('.nav-tab').click(function (e) {             e.preventDefault();             $('.nav-tab').removeClass('nav-tab-active');             $(this).addClass('nav-tab-active');             $('.aa-tab-content').removeClass('active');             $($(this).attr('href')).addClass('active');         });
-             // WP Media Uploader         $('.upload-image-btn').click(function (e) {             e.preventDefault();             var targetInput = $(this).siblings('.image-url-input');             var mediaUploader = wp.media({ title: 'Choose Image', button: { text: 'Select' }, multiple: false });             mediaUploader.on('select', function () {                 var attachment = mediaUploader.state().get('selection').first().toJSON();                 targetInput.val(attachment.url);             });             mediaUploader.open();         });
-             // Inventory Property Filter         $('#inv-filter-apt').on('change', function () {             var selectedApt = $(this).val();             if (selectedApt === 'all') {                 $('.inv-row').show();             } else {                 $('.inv-row').hide();                 $('.inv-row[data-apt="' + selectedApt + '"]').show();             }         });
-             // Edit Inventory Button Logic         $('.edit-inv-btn').on('click', function (e) {             e.preventDefault();             var btn = $(this);
-                 // Populate Form Fields             $('#form_inv_action').val('edit_inventory');             $('#form_inv_id').val(btn.data('id'));             $('select[name="inv_apt_id"]').val(btn.data('apt'));             $('input[name="inv_name"]').val(btn.data('name'));             $('input[name="inv_image"]').val(btn.data('img'));             $('input[name="inv_url"]').val(btn.data('url'));             $('input[name="inv_qty"]').val(btn.data('qty'));
-                 // Change UI text             $('#inv-form-title').text('Edit Inventory Item');             $('#inv-submit-btn').text('Update Inventory Item');             $('#cancel-edit-btn').show();
-                 // Smooth scroll to the form             $('html, body').animate({                 scrollTop: $("#inv-form-title").offset().top - 50             }, 500);         });
-             // Cancel Edit Logic         $('#cancel-edit-btn').on('click', function (e) {             e.preventDefault();
-                 // Reset Form Fields             $('#form_inv_action').val('add_inventory');             $('#form_inv_id').val('');             $('select[name="inv_apt_id"]').val('');             $('input[name="inv_name"]').val('');             $('input[name="inv_image"]').val('');             $('input[name="inv_url"]').val('');             $('input[name="inv_qty"]').val('0');
-                 // Reset UI text             $('#inv-form-title').text('Add New Inventory Item');             $('#inv-submit-btn').text('Add Inventory Item');             $(this).hide();         });     });
+    <script>
+        jQuery(document).ready(function ($) {
+
+            // ── Tab Switcher (scoped to .aa-tabs to avoid WP admin conflicts) ──
+            $('.aa-tabs .nav-tab').on('click', function (e) {
+                e.preventDefault();
+                $('.aa-tabs .nav-tab').removeClass('nav-tab-active');
+                $(this).addClass('nav-tab-active');
+                $('.aa-tab-content').removeClass('active');
+                $($(this).attr('href')).addClass('active');
+            });
+
+            // ── WP Media Uploader ──
+            $('.upload-image-btn').on('click', function (e) {
+                e.preventDefault();
+                var targetInput = $(this).siblings('.image-url-input');
+                var mediaUploader = wp.media({
+                    title: 'Choose Image',
+                    button: { text: 'Select' },
+                    multiple: false
+                });
+                mediaUploader.on('select', function () {
+                    var attachment = mediaUploader.state().get('selection').first().toJSON();
+                    targetInput.val(attachment.url);
+                });
+                mediaUploader.open();
+            });
+
+            // ── Inventory Property Filter ──
+            $('#inv-filter-apt').on('change', function () {
+                var selectedApt = $(this).val();
+                if (selectedApt === 'all') {
+                    $('.inv-row').show();
+                } else {
+                    $('.inv-row').hide();
+                    $('.inv-row[data-apt="' + selectedApt + '"]').show();
+                }
+            });
+
+            // ── Edit Inventory Button ──
+            $('.edit-inv-btn').on('click', function (e) {
+                e.preventDefault();
+                var btn = $(this);
+                $('#form_inv_action').val('edit_inventory');
+                $('#form_inv_id').val(btn.data('id'));
+                $('select[name="inv_apt_id"]').val(btn.data('apt'));
+                $('input[name="inv_name"]').val(btn.data('name'));
+                $('input[name="inv_image"]').val(btn.data('img'));
+                $('input[name="inv_url"]').val(btn.data('url'));
+                $('input[name="inv_qty"]').val(btn.data('qty'));
+                $('#inv-form-title').text('Edit Inventory Item');
+                $('#inv-submit-btn').text('Update Inventory Item');
+                $('#cancel-edit-btn').show();
+                $('html, body').animate({ scrollTop: $('#inv-form-title').offset().top - 50 }, 500);
+            });
+
+            // ── Cancel Edit ──
+            $('#cancel-edit-btn').on('click', function (e) {
+                e.preventDefault();
+                $('#form_inv_action').val('add_inventory');
+                $('#form_inv_id').val('');
+                $('select[name="inv_apt_id"]').val('');
+                $('input[name="inv_name"]').val('');
+                $('input[name="inv_image"]').val('');
+                $('input[name="inv_url"]').val('');
+                $('input[name="inv_qty"]').val('0');
+                $('#inv-form-title').text('Add New Inventory Item');
+                $('#inv-submit-btn').text('Add Inventory Item');
+                $(this).hide();
+            });
+
+        });
     </script>
     <?php
 }
