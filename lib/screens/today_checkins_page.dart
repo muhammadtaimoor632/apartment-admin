@@ -670,11 +670,11 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         );
         final daysLeft = endDate.difference(today).inDays;
         if (daysLeft <= 0) {
-          displayTime = 'Checkout today';
+          displayTime = 'Today';
         } else if (daysLeft == 1) {
-          displayTime = 'Checkout tomorrow';
+          displayTime = 'Tomorrow';
         } else {
-          displayTime = 'Checkout in $daysLeft days';
+          displayTime = '$daysLeft days';
         }
       } else {
         displayTime = arrivalTime;
@@ -721,37 +721,45 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                         ),
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF8CB2A4).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (!isHosting) ...[
+                    if (isHosting)
+                      Text(
+                        displayTime,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[500],
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF8CB2A4).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                             Icon(
                               timeIcon,
                               size: 16,
                               color: const Color(0xFF5A8B7B),
                             ),
                             const SizedBox(width: 4),
-                          ],
-                          Text(
-                            displayTime,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                              color: Color(0xFF4A7A6D),
+                            Text(
+                              displayTime,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                color: Color(0xFF4A7A6D),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
                   ],
                 ),
                 if (specialReq != null) ...[
