@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+
 import 'package:wild_atlantic_hub/models/booking_event.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:wild_atlantic_hub/models/cleaning_details.dart';
@@ -606,9 +606,29 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     } else {
       final event = entry.event;
       final arrivalTime = _getArrivalTime(event.formData) ?? '15:00';
-      final displayTime = isHosting
-          ? DateFormat('MMM d').format(event.end)
-          : arrivalTime;
+      String displayTime;
+      if (isHosting) {
+        final today = DateTime(
+          DateTime.now().year,
+          DateTime.now().month,
+          DateTime.now().day,
+        );
+        final endDate = DateTime(
+          event.end.year,
+          event.end.month,
+          event.end.day,
+        );
+        final daysLeft = endDate.difference(today).inDays;
+        if (daysLeft <= 0) {
+          displayTime = 'Checkout today';
+        } else if (daysLeft == 1) {
+          displayTime = 'Checkout tomorrow';
+        } else {
+          displayTime = 'Checkout in $daysLeft days';
+        }
+      } else {
+        displayTime = arrivalTime;
+      }
       final timeIcon = isHosting ? Icons.logout : Icons.access_time;
 
       return Padding(
@@ -659,8 +679,14 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(timeIcon, size: 16, color: const Color(0xFF5A8B7B)),
-                      const SizedBox(width: 4),
+                      if (!isHosting) ...[
+                        Icon(
+                          timeIcon,
+                          size: 16,
+                          color: const Color(0xFF5A8B7B),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
                       Text(
                         displayTime,
                         style: const TextStyle(
