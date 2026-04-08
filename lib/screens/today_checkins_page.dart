@@ -252,7 +252,29 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     return entries;
   }
 
+  String _formatTo24Hour(String timeString) {
+    try {
+      final normalized = timeString.trim().toUpperCase();
+      final regex = RegExp(r'^(\d{1,2})(?:[:.](\d{2}))?\s*(AM|PM)?$');
+      final match = regex.firstMatch(normalized);
+      if (match != null) {
+        int hour = int.parse(match.group(1)!);
+        int minute = match.group(2) != null ? int.parse(match.group(2)!) : 0;
+        String? amPm = match.group(3);
+
+        if (amPm == 'PM' && hour < 12) hour += 12;
+        if (amPm == 'AM' && hour == 12) hour = 0;
+
+        final hourStr = hour.toString().padLeft(2, '0');
+        final minStr = minute.toString().padLeft(2, '0');
+        return '$hourStr:$minStr';
+      }
+    } catch (_) {}
+    return timeString;
+  }
+
   String? _getArrivalTime(Map<String, dynamic> formData) {
+    String? foundTime;
     for (final key in formData.keys) {
       final lk = key
           .toLowerCase()
@@ -261,23 +283,32 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
           .replaceAll('_', '');
       if (lk.contains('datetime')) {
         final val = formData[key];
-        if (val != null && val.toString().isNotEmpty) return val.toString();
-      }
-    }
-    for (final kw in [
-      'arrival time',
-      'check-in time',
-      'checkin time',
-      'expected arrival',
-    ]) {
-      for (final key in formData.keys) {
-        if (key.toLowerCase().contains(kw)) {
-          final val = formData[key];
-          if (val != null && val.toString().isNotEmpty) return val.toString();
+        if (val != null && val.toString().isNotEmpty) {
+          foundTime = val.toString();
+          break;
         }
       }
     }
-    return null;
+    if (foundTime == null) {
+      for (final kw in [
+        'arrival time',
+        'check-in time',
+        'checkin time',
+        'expected arrival',
+      ]) {
+        for (final key in formData.keys) {
+          if (key.toLowerCase().contains(kw)) {
+            final val = formData[key];
+            if (val != null && val.toString().isNotEmpty) {
+              foundTime = val.toString();
+              break;
+            }
+          }
+        }
+        if (foundTime != null) break;
+      }
+    }
+    return foundTime != null ? _formatTo24Hour(foundTime) : null;
   }
 
   @override
@@ -459,7 +490,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
       final String timeInfo;
       if (entry.nextEvent != null) {
         final nextArrival =
-            _getArrivalTime(entry.nextEvent!.formData) ?? '3:00 PM';
+            _getArrivalTime(entry.nextEvent!.formData) ?? '15:00';
 
         final today = DateTime(
           DateTime.now().year,
@@ -574,7 +605,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
       );
     } else {
       final event = entry.event;
-      final arrivalTime = _getArrivalTime(event.formData) ?? '3:00 PM';
+      final arrivalTime = _getArrivalTime(event.formData) ?? '15:00';
       final displayTime = isHosting
           ? DateFormat('MMM d').format(event.end)
           : arrivalTime;
