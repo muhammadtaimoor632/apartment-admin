@@ -810,27 +810,32 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   }
 
   void _showEventDetail(_BookingEntry entry, {required bool isCheckout}) {
-    showModalBottomSheet(
+    final formData = isCheckout
+        ? entry.nextEvent?.formData
+        : entry.event.formData;
+    final roomName = isCheckout
+        ? (entry.nextEvent?.room ?? entry.event.room)
+        : entry.event.room;
+
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.85,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 40,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
-                ),
+              // ── header ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
                 child: Row(
                   children: [
                     Expanded(
@@ -843,155 +848,68 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
               ),
-              Expanded(
+              const Divider(height: 1),
+
+              // ── scrollable body ──
+              Flexible(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (isCheckout) ...[
-                        if (entry.nextEvent == null)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 20.0),
-                            child: Text(
-                              'No upcoming guests found for this room.',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontStyle: FontStyle.italic,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          )
-                        else ...[
-                          const Text(
-                            'Next Guest Form Details',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          if (entry.nextEvent!.formData.isEmpty)
-                            const Text(
-                              "Guest hasn't filled out the form yet.",
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey,
-                              ),
-                            )
-                          else
-                            ...entry.nextEvent!.formData.entries
-                                .where((e) {
-                                  if (e.value == null ||
-                                      e.value.toString().isEmpty)
-                                    return false;
-                                  final lk = e.key.toLowerCase();
-                                  if (lk.contains('nonce') ||
-                                      lk.contains('referer') ||
-                                      lk.contains('token') ||
-                                      lk.contains('hash') ||
-                                      lk.contains('checkbox') ||
-                                      lk.contains('wphttp'))
-                                    return false;
-                                  return true;
-                                })
-                                .map((e) {
-                                  final friendlyLabel =
-                                      FormLabelMapper.getLabel(
-                                        e.key,
-                                        propertyName: entry.nextEvent!.room,
-                                      );
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          friendlyLabel,
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.grey[600],
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          e.value.toString(),
-                                          style: const TextStyle(fontSize: 16),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }),
-                        ],
-                      ] else ...[
+                      if (isCheckout && entry.nextEvent == null)
                         const Text(
-                          'Form Details',
+                          'No upcoming guests found.',
                           style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
+                            fontSize: 15,
+                            fontStyle: FontStyle.italic,
+                            color: Colors.grey,
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (entry.event.formData.isEmpty)
-                          const Text(
-                            "Guest hasn't filled out the form yet.",
-                            style: TextStyle(fontSize: 16, color: Colors.grey),
-                          )
-                        else
-                          ...entry.event.formData.entries
-                              .where((e) {
-                                if (e.value == null ||
-                                    e.value.toString().isEmpty)
-                                  return false;
-                                final lk = e.key.toLowerCase();
-                                if (lk.contains('nonce') ||
-                                    lk.contains('referer') ||
-                                    lk.contains('token') ||
-                                    lk.contains('hash') ||
-                                    lk.contains('checkbox') ||
-                                    lk.contains('wphttp'))
-                                  return false;
-                                return true;
-                              })
-                              .map((e) {
-                                final friendlyLabel = FormLabelMapper.getLabel(
-                                  e.key,
-                                  propertyName: entry.event.room,
-                                );
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        friendlyLabel,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey[600],
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        e.value.toString(),
-                                        style: const TextStyle(fontSize: 16),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                      ],
+                        )
+                      else if (formData == null || formData.isEmpty)
+                        const Text(
+                          "Guest hasn't filled out the form yet.",
+                          style: TextStyle(fontSize: 15, color: Colors.grey),
+                        )
+                      else
+                        ...formData.entries
+                            .where((e) {
+                              if (e.value == null || e.value.toString().isEmpty)
+                                return false;
+                              final lk = e.key.toLowerCase();
+                              if (lk.contains('nonce') ||
+                                  lk.contains('referer') ||
+                                  lk.contains('token') ||
+                                  lk.contains('hash') ||
+                                  lk.contains('checkbox') ||
+                                  lk.contains('wphttp'))
+                                return false;
+                              return true;
+                            })
+                            .map((e) {
+                              final friendlyLabel = FormLabelMapper.getLabel(
+                                e.key,
+                                propertyName: roomName,
+                              );
+                              final lk = friendlyLabel.toLowerCase();
+                              final isSecret =
+                                  lk.contains('lock') ||
+                                  lk.contains('code') ||
+                                  lk.contains('pin') ||
+                                  lk.contains('door');
+                              return _labelValue(
+                                isSecret ? '🔐 $friendlyLabel' : friendlyLabel,
+                                e.value.toString(),
+                              );
+                            }),
                     ],
                   ),
                 ),
@@ -1000,6 +918,30 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _labelValue(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[500],
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
     );
   }
 }

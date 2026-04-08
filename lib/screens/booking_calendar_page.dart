@@ -1157,34 +1157,30 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     );
   }
 
-  // ─── Event detail bottom sheet ────────────────────────────────
+  // ─── Event detail popup ────────────────────────────────────────
 
   void _showEventDetail(BookingEvent event) {
     final dateFormatter = DateFormat('dd MMM yyyy');
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      useRootNavigator: false,
-      useSafeArea: true,
       builder: (ctx) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.85,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        return Dialog(
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 40,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
-                ),
+              // ── header ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
                 child: Row(
                   children: [
                     Expanded(
@@ -1199,69 +1195,47 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                     _platformBadge(event.platform, event.isBlocked),
                     const SizedBox(width: 8),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(Icons.close, size: 20),
                       onPressed: () => Navigator.of(ctx).pop(),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      splashRadius: 20,
                     ),
                   ],
                 ),
               ),
-              Expanded(
+              const Divider(height: 1),
+
+              // ── scrollable body ──
+              Flexible(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _detailField(
-                        'Check-in',
+                      _labelValue(
+                        'Checkin Date',
                         dateFormatter.format(event.start),
                       ),
-                      _detailField(
-                        'Check-out',
-                        dateFormatter.format(event.end),
-                      ),
+                      _labelValue('Check-out', dateFormatter.format(event.end)),
                       if (!event.isBlocked && event.nights > 0)
-                        _detailField(
+                        _labelValue(
                           'Duration',
                           '${event.nights} night${event.nights == 1 ? '' : 's'}',
                         ),
+
                       if (event.isBlocked)
-                        Container(
-                          margin: const EdgeInsets.only(top: 16),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.block, color: Colors.grey[500]),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'This slot is manually blocked and not available for booking.',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ],
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            'This slot is manually blocked.',
+                            style: TextStyle(
+                              color: Colors.grey[500],
+                              fontStyle: FontStyle.italic,
+                            ),
                           ),
                         ),
-                      if (!event.isBlocked && event.formData.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        Text(
-                          'Guest Details',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                        const SizedBox(height: 10),
+
+                      if (!event.isBlocked && event.formData.isNotEmpty)
                         ...event.formData.entries
                             .where((e) {
                               if (e.value == null || e.value.toString().isEmpty)
@@ -1296,34 +1270,21 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                                   lk.contains('code') ||
                                   lk.contains('pin') ||
                                   lk.contains('door');
-                              return _detailField(
-                                friendlyLabel,
+                              return _labelValue(
+                                isSecret ? '🔐 $friendlyLabel' : friendlyLabel,
                                 entry.value.toString(),
-                                isSecret: isSecret,
                               );
                             }),
-                      ],
+
                       if (!event.isBlocked && event.formData.isEmpty)
-                        Container(
-                          margin: const EdgeInsets.only(top: 16),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.amber[50],
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.info_outline,
-                                color: Colors.amber[700],
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'No guest details found in Fluent Forms for this check-in date.',
-                                ),
-                              ),
-                            ],
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            'No guest details found.',
+                            style: TextStyle(
+                              color: Colors.grey[500],
+                              fontStyle: FontStyle.italic,
+                            ),
                           ),
                         ),
                     ],
@@ -1337,22 +1298,25 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
     );
   }
 
-  Widget _detailField(String label, String value, {bool isSecret = false}) {
+  Widget _labelValue(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            isSecret ? '🔐 $label' : label,
+            label,
             style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
+              fontSize: 12,
               fontWeight: FontWeight.w600,
+              color: Colors.grey[500],
             ),
           ),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 16)),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
         ],
       ),
     );
