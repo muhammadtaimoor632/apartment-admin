@@ -11,6 +11,7 @@ class FormLabelMapper {
     'description': 'Door Code',
     'dropdown': 'Number of Guests',
     'description 1': 'Special Requests',
+    'description 2': 'Special Requests',
     'checkbox 1': 'Terms Agreement',
 
     // ── Kirwans Lane keys ──
@@ -38,4 +39,3 @@ class FormLabelMapper {
     return rawKey;
   }
 }
-
