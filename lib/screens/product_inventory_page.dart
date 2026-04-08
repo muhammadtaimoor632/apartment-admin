@@ -12,7 +12,7 @@ class ProductInventoryPage extends StatefulWidget {
 }
 
 class _ProductInventoryPageState extends State<ProductInventoryPage> {
-  late Future<(List<CleaningDetails>, Map<String, int>)> _dataFuture;
+  late Future<(List<CleaningDetails>, Map<String, int>, String)> _dataFuture;
 
   // Brand colour palette
   static const Color _primary = Color(0xFF8CB2A4);
@@ -24,7 +24,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
     _dataFuture = _fetchData();
   }
 
-  Future<(List<CleaningDetails>, Map<String, int>)> _fetchData() async {
+  Future<(List<CleaningDetails>, Map<String, int>, String)> _fetchData() async {
     final apartments = await ApiService.fetchCleaningDetails();
 
     // Fetch individual inventory item counts per apartment
@@ -40,7 +40,9 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
       }),
     );
 
-    return (apartments, inventoryCounts);
+    final note = await ApiService.fetchGlobalInventoryNote();
+
+    return (apartments, inventoryCounts, note);
   }
 
   void _navigateToInventoryList(
@@ -63,27 +65,22 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
       appBar: AppBar(
-        title: Row(
-          children: [
-            const Expanded(
-              child: Text(
-                'Inventory',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.help_outline, color: Colors.white),
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (ctx) => const _GlobalInventoryNotesDialog(),
-                );
-              },
-            ),
-          ],
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.help_outline, color: Colors.white),
+          onPressed: () async {
+            await showDialog(
+              context: context,
+              builder: (ctx) => const _GlobalInventoryNotesDialog(),
+            );
+            setState(() {
+              _dataFuture = _fetchData();
+            });
+          },
+        ),
+        title: const Text(
+          'Inventory',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: _primaryDark,
         elevation: 0,
@@ -97,7 +94,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
           ),
         ],
       ),
-      body: FutureBuilder<(List<CleaningDetails>, Map<String, int>)>(
+      body: FutureBuilder<(List<CleaningDetails>, Map<String, int>, String)>(
         future: _dataFuture,
         builder: (context, snapshot) => _buildBody(snapshot),
       ),
@@ -105,7 +102,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
   }
 
   Widget _buildBody(
-    AsyncSnapshot<(List<CleaningDetails>, Map<String, int>)> snapshot,
+    AsyncSnapshot<(List<CleaningDetails>, Map<String, int>, String)> snapshot,
   ) {
     if (snapshot.connectionState == ConnectionState.waiting) {
       return const Center(child: CircularProgressIndicator(color: _primary));
@@ -137,6 +134,8 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
 
     final apartments = snapshot.data!.$1;
     final inventoryCounts = snapshot.data!.$2;
+    final note = snapshot.data!.$3;
+    final hasNote = note.trim().isNotEmpty;
 
     return RefreshIndicator(
       color: _primary,
@@ -148,10 +147,56 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
       },
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
-        itemCount: apartments.length,
+        itemCount: apartments.length + (hasNote ? 1 : 0),
         separatorBuilder: (context, index) => const SizedBox(height: 14),
         itemBuilder: (context, index) {
-          final apartment = apartments[index];
+          if (hasNote && index == 0) {
+            return Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withValues(alpha: 0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                  BoxShadow(
+                    color: Colors.red.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+                border: Border.all(color: Colors.red.shade100),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Required Fixes',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    note,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.red.shade900,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final aptIndex = hasNote ? index - 1 : index;
+          final apartment = apartments[aptIndex];
           final inventoryCount = inventoryCounts[apartment.id] ?? 0;
           return _ApartmentInventoryCard(
             apartment: apartment,
@@ -354,48 +399,34 @@ class _GlobalInventoryNotesDialogState
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Icon(Icons.note_alt_outlined, color: _primaryDark),
-                const SizedBox(width: 8),
                 const Text(
-                  'Global Notes',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2D3E3A),
-                  ),
+                  'Required Fixes',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                const Spacer(),
-                if (_saving)
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: _primaryDark,
-                    ),
-                  )
-                else
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.grey),
-                    onPressed: () => Navigator.pop(context),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.grey),
+                  onPressed: () => Navigator.pop(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  splashRadius: 20,
+                ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             if (_loading)
               const SizedBox(
-                height: 150,
+                height: 100,
                 child: Center(
                   child: CircularProgressIndicator(color: _primaryDark),
                 ),
@@ -403,25 +434,20 @@ class _GlobalInventoryNotesDialogState
             else
               Container(
                 height: 200,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
+                padding: const EdgeInsets.all(4),
                 child: TextField(
                   controller: _ctrl,
                   maxLines: null,
                   expands: true,
-                  decoration: const InputDecoration(
-                    hintText: 'Add global notes here...',
+                  decoration: InputDecoration(
+                    hintText: 'Type required fixes here...',
                     border: InputBorder.none,
-                    hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                    filled: true,
+                    fillColor: Colors.white,
                   ),
-                  style: const TextStyle(fontSize: 15, height: 1.4),
                 ),
               ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -430,18 +456,27 @@ class _GlobalInventoryNotesDialogState
                   backgroundColor: _primaryDark,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   elevation: 0,
                 ),
-                child: const Text(
-                  'Save Notes',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
+                child: _saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Save',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
               ),
             ),
           ],
