@@ -63,9 +63,27 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
       appBar: AppBar(
-        title: const Text(
-          'Inventory',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Inventory',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.help_outline, color: Colors.white),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => const _GlobalInventoryNotesDialog(),
+                );
+              },
+            ),
+          ],
         ),
         backgroundColor: _primaryDark,
         elevation: 0,
@@ -272,6 +290,166 @@ class _ApartmentInventoryCard extends StatelessWidget {
         Icons.apartment_rounded,
         color: Color(0xFF8CB2A4),
         size: 56,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Global Inventory Notes Popup Dialog
+// ─────────────────────────────────────────────────────────────────────────────
+class _GlobalInventoryNotesDialog extends StatefulWidget {
+  const _GlobalInventoryNotesDialog();
+
+  @override
+  State<_GlobalInventoryNotesDialog> createState() =>
+      _GlobalInventoryNotesDialogState();
+}
+
+class _GlobalInventoryNotesDialogState
+    extends State<_GlobalInventoryNotesDialog> {
+  // We'll reuse the "Admin|GlobalNote" key, or a specific "Admin|InventoryNote".
+  // Using Admin|GlobalNote keeps it synced with the Today page notes.
+  // We can use ApiService.fetchAdminNote and saveAdminNote.
+
+  bool _loading = true;
+  bool _saving = false;
+  final _ctrl = TextEditingController();
+
+  static const _primaryDark = Color(0xFF5D8A7A);
+
+  @override
+  void initState() {
+    super.initState();
+    ApiService.fetchAdminNote().then((noteStr) {
+      if (mounted) {
+        setState(() {
+          _ctrl.text = noteStr;
+          _loading = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _saveNotes() async {
+    setState(() => _saving = true);
+    final ok = await ApiService.saveAdminNote(_ctrl.text);
+    if (mounted) {
+      setState(() => _saving = false);
+      if (ok) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notes saved successfully'),
+            backgroundColor: _primaryDark,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to save notes'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.note_alt_outlined, color: _primaryDark),
+                const SizedBox(width: 8),
+                const Text(
+                  'Global Notes',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF2D3E3A),
+                  ),
+                ),
+                const Spacer(),
+                if (_saving)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: _primaryDark,
+                    ),
+                  )
+                else
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.grey),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (_loading)
+              const SizedBox(
+                height: 150,
+                child: Center(
+                  child: CircularProgressIndicator(color: _primaryDark),
+                ),
+              )
+            else
+              Container(
+                height: 200,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: TextField(
+                  controller: _ctrl,
+                  maxLines: null,
+                  expands: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Add global notes here...',
+                    border: InputBorder.none,
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                  ),
+                  style: const TextStyle(fontSize: 15, height: 1.4),
+                ),
+              ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _loading || _saving ? null : _saveNotes,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryDark,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'Save Notes',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
