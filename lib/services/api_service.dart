@@ -201,9 +201,21 @@ class ApiService {
     final response = await http.get(uri, headers: _authHeaders);
     if (response.statusCode == 200) {
       final List<dynamic> decodedData = json.decode(response.body);
-      return decodedData
+      final List<BookingCalendar> calendars = decodedData
           .map((data) => BookingCalendar.fromJson(data as Map<String, dynamic>))
           .toList();
+
+      // Automatically sync/refresh all calendars to pull the latest fluent form data
+      try {
+        final refreshFutures = calendars.map(
+          (cal) => refreshBookingCalendar(cal.id),
+        );
+        final refreshedCalendars = await Future.wait(refreshFutures);
+        return refreshedCalendars;
+      } catch (e) {
+        debugPrint('Automatic calendar sync failed: $e');
+        return calendars; // Fallback to the unrefreshed data
+      }
     } else {
       throw Exception(
         'Failed to load booking calendars: ${response.reasonPhrase}',
