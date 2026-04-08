@@ -433,10 +433,16 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     );
   }
 
-  String? _getSpecialRequestString(Map<String, dynamic>? formData) {
+  String? _getSpecialRequestString(
+    Map<String, dynamic>? formData, {
+    String propertyName = '',
+  }) {
     if (formData == null) return null;
     for (final key in formData.keys) {
-      final label = FormLabelMapper.getLabel(key).toLowerCase();
+      final label = FormLabelMapper.getLabel(
+        key,
+        propertyName: propertyName,
+      ).toLowerCase();
       if (label.contains('special request') ||
           (key.toLowerCase().contains('special') &&
               key.toLowerCase().contains('request'))) {
@@ -536,7 +542,10 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         timeInfo = '--';
       }
 
-      final specialReq = _getSpecialRequestString(entry.nextEvent?.formData);
+      final specialReq = _getSpecialRequestString(
+        entry.nextEvent?.formData,
+        propertyName: entry.nextEvent?.room ?? '',
+      );
 
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
@@ -680,7 +689,10 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         displayTime = arrivalTime;
       }
       final timeIcon = isHosting ? Icons.logout : Icons.access_time;
-      final specialReq = _getSpecialRequestString(event.formData);
+      final specialReq = _getSpecialRequestString(
+        event.formData,
+        propertyName: event.room,
+      );
 
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
@@ -885,13 +897,17 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                                       lk.contains('referer') ||
                                       lk.contains('token') ||
                                       lk.contains('hash') ||
+                                      lk.contains('checkbox') ||
                                       lk.contains('wphttp'))
                                     return false;
                                   return true;
                                 })
                                 .map((e) {
                                   final friendlyLabel =
-                                      FormLabelMapper.getLabel(e.key);
+                                      FormLabelMapper.getLabel(
+                                        e.key,
+                                        propertyName: entry.nextEvent!.room,
+                                      );
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 12),
                                     child: Column(
@@ -942,6 +958,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                                     lk.contains('referer') ||
                                     lk.contains('token') ||
                                     lk.contains('hash') ||
+                                    lk.contains('checkbox') ||
                                     lk.contains('wphttp'))
                                   return false;
                                 return true;
@@ -949,6 +966,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                               .map((e) {
                                 final friendlyLabel = FormLabelMapper.getLabel(
                                   e.key,
+                                  propertyName: entry.event.room,
                                 );
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 12),

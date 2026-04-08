@@ -20,16 +20,26 @@ class FormLabelMapper {
     'input radio': 'Number of Beds',
     'input radio 1': 'Sofa Bed',
     'input radio 2': 'Travel Cot/Crib',
+    'input radio 3': 'Sofa bed preferences',
     'input text': 'Door Code',
     'input radio 4': 'Parking',
     'input radio 5': 'Number of Cars',
     'checkbox': 'Confirmation',
+    'input text 1': 'Special Requests',
   };
 
   /// Returns the friendly label for a given form field key.
   /// Falls back to the original key if no mapping is found.
-  static String getLabel(String rawKey) {
+  static String getLabel(String rawKey, {String propertyName = ''}) {
     final normalizedKey = rawKey.toLowerCase().trim();
+    final lowerProperty = propertyName.toLowerCase();
+
+    if (normalizedKey == 'description') {
+      if (lowerProperty.contains('kirwan')) {
+        return 'Special Requests';
+      }
+      return 'Door Code';
+    }
 
     if (_labelMap.containsKey(normalizedKey)) {
       return _labelMap[normalizedKey]!;

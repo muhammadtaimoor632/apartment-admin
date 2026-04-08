@@ -1274,6 +1274,7 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                                   lk.contains('referer') ||
                                   lk.contains('token') ||
                                   lk.contains('hash') ||
+                                  lk.contains('checkbox') ||
                                   lk.contains('wphttp') ||
                                   (lk.contains('fluentform') &&
                                       lk.contains('nonce')) ||
@@ -1287,6 +1288,7 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                             .map((entry) {
                               final friendlyLabel = FormLabelMapper.getLabel(
                                 entry.key,
+                                propertyName: event.room,
                               );
                               final lk = friendlyLabel.toLowerCase();
                               final isSecret =
