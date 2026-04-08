@@ -350,8 +350,6 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     final cleaning = _roomsToClean;
     final ready = _readyForCheckin;
 
-    final specialRequests = _getSpecialRequests([...checkins, ...hosting]);
-
     if (checkins.isEmpty &&
         hosting.isEmpty &&
         cleaning.isEmpty &&
@@ -390,7 +388,6 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       children: [
         const _AdminNotepad(),
-        if (specialRequests.isNotEmpty) _buildSpecialRequests(specialRequests),
         if (checkins.isNotEmpty) ...[
           _buildSectionHeader(
             'Today\'s Checkin',
@@ -436,111 +433,20 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     );
   }
 
-  List<Map<String, String>> _getSpecialRequests(List<_BookingEntry> entries) {
-    final requests = <Map<String, String>>[];
-    for (final entry in entries) {
-      final formData = entry.event.formData;
-      for (final key in formData.keys) {
-        final label = FormLabelMapper.getLabel(key).toLowerCase();
-        if (label.contains('special request') ||
-            (key.toLowerCase().contains('special') &&
-                key.toLowerCase().contains('request'))) {
-          final value = formData[key];
-          if (value != null && value.toString().trim().isNotEmpty) {
-            requests.add({
-              'room': entry.event.room,
-              'request': value.toString().trim(),
-            });
-            break;
-          }
+  String? _getSpecialRequestString(Map<String, dynamic>? formData) {
+    if (formData == null) return null;
+    for (final key in formData.keys) {
+      final label = FormLabelMapper.getLabel(key).toLowerCase();
+      if (label.contains('special request') ||
+          (key.toLowerCase().contains('special') &&
+              key.toLowerCase().contains('request'))) {
+        final value = formData[key];
+        if (value != null && value.toString().trim().isNotEmpty) {
+          return value.toString().trim();
         }
       }
     }
-    return requests;
-  }
-
-  Widget _buildSpecialRequests(List<Map<String, String>> requests) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 24),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-        border: Border.all(color: Colors.grey[100]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2196F3).withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.note_alt_outlined,
-                  color: Color(0xFF2196F3),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Guest Notes',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...requests.map(
-            (r) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${r['room']}: ',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      r['request'] ?? '',
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 14,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return null;
   }
 
   Widget _buildSectionHeader(
@@ -630,6 +536,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         timeInfo = '--';
       }
 
+      final specialReq = _getSpecialRequestString(entry.nextEvent?.formData);
+
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: InkWell(
@@ -654,62 +562,89 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
               ],
               border: Border.all(color: Colors.orange.withOpacity(0.2)),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        entry.event.room,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.1,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (entry.nextEvent != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[50],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.access_time,
-                          size: 16,
-                          color: Colors.orange,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          timeInfo,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                            color: Colors.orange[900],
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.event.room,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.1,
+                            ),
                           ),
+                          const SizedBox(height: 4),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (entry.nextEvent != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
                         ),
-                      ],
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.access_time,
+                              size: 16,
+                              color: Colors.orange,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              timeInfo,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                color: Colors.orange[900],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                if (specialReq != null) ...[
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Special Request',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: Colors.orange[800],
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    specialReq,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      height: 1.4,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -742,6 +677,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         displayTime = arrivalTime;
       }
       final timeIcon = isHosting ? Icons.logout : Icons.access_time;
+      final specialReq = _getSpecialRequestString(event.formData);
 
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
@@ -767,49 +703,78 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
               ],
               border: Border.all(color: Colors.grey[100]!),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    event.room,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.1,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF8CB2A4).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (!isHosting) ...[
-                        Icon(
-                          timeIcon,
-                          size: 16,
-                          color: const Color(0xFF5A8B7B),
-                        ),
-                        const SizedBox(width: 4),
-                      ],
-                      Text(
-                        displayTime,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        event.room,
                         style: const TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                          color: Color(0xFF4A7A6D),
+                          letterSpacing: -0.1,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF8CB2A4).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!isHosting) ...[
+                            Icon(
+                              timeIcon,
+                              size: 16,
+                              color: const Color(0xFF5A8B7B),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            displayTime,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                              color: Color(0xFF4A7A6D),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
+                if (specialReq != null) ...[
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Special Request',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: isHosting
+                          ? Colors.blue[800]
+                          : const Color(0xFF4A7A6D),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    specialReq,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      height: 1.4,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
