@@ -624,24 +624,22 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   ],
                 ),
                 if (specialReq != null) ...[
-                  const SizedBox(height: 12),
-                  const Divider(height: 1),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   Text(
-                    'Special Request',
+                    'Notes:',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      fontSize: 13,
+                      fontSize: 12,
                       color: Colors.orange[800],
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     specialReq,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12,
                       color: Colors.grey[700],
-                      height: 1.4,
+                      height: 1.3,
                     ),
                   ),
                 ],
@@ -752,26 +750,24 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   ],
                 ),
                 if (specialReq != null) ...[
-                  const SizedBox(height: 12),
-                  const Divider(height: 1),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   Text(
-                    'Special Request',
+                    'Notes:',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      fontSize: 13,
+                      fontSize: 12,
                       color: isHosting
                           ? Colors.blue[800]
                           : const Color(0xFF4A7A6D),
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     specialReq,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12,
                       color: Colors.grey[700],
-                      height: 1.4,
+                      height: 1.3,
                     ),
                   ),
                 ],
