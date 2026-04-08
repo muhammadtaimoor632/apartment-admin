@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 
 import 'package:wild_atlantic_hub/models/booking_event.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
@@ -349,6 +350,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     final cleaning = _roomsToClean;
     final ready = _readyForCheckin;
 
+    final specialRequests = _getSpecialRequests([...checkins, ...hosting]);
+
     if (checkins.isEmpty &&
         hosting.isEmpty &&
         cleaning.isEmpty &&
@@ -386,6 +389,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       children: [
+        const _AdminNotepad(),
+        if (specialRequests.isNotEmpty) _buildSpecialRequests(specialRequests),
         if (checkins.isNotEmpty) ...[
           _buildSectionHeader(
             'Today\'s Checkin',
@@ -428,6 +433,113 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
           ...ready.map((e) => _buildCard(e, isCheckout: true)),
         ],
       ],
+    );
+  }
+
+  List<Map<String, String>> _getSpecialRequests(List<_BookingEntry> entries) {
+    final requests = <Map<String, String>>[];
+    for (final entry in entries) {
+      final formData = entry.event.formData;
+      for (final key in formData.keys) {
+        final label = FormLabelMapper.getLabel(key).toLowerCase();
+        if (label.contains('special request') ||
+            (key.toLowerCase().contains('special') &&
+                key.toLowerCase().contains('request'))) {
+          final value = formData[key];
+          if (value != null && value.toString().trim().isNotEmpty) {
+            requests.add({
+              'room': entry.event.room,
+              'request': value.toString().trim(),
+            });
+            break;
+          }
+        }
+      }
+    }
+    return requests;
+  }
+
+  Widget _buildSpecialRequests(List<Map<String, String>> requests) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(color: Colors.grey[100]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2196F3).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.note_alt_outlined,
+                  color: Color(0xFF2196F3),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Guest Notes',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...requests.map(
+            (r) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${r['room']}: ',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      r['request'] ?? '',
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -766,8 +878,6 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                             ),
                           )
                         else ...[
-                          _NoteEditor(event: entry.nextEvent!),
-                          const SizedBox(height: 24),
                           const Text(
                             'Next Guest Form Details',
                             style: TextStyle(
@@ -828,8 +938,6 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                                 }),
                         ],
                       ] else ...[
-                        _NoteEditor(event: entry.event),
-                        const SizedBox(height: 24),
                         const Text(
                           'Form Details',
                           style: TextStyle(
@@ -899,95 +1007,239 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   }
 }
 
-class _NoteEditor extends StatefulWidget {
-  final BookingEvent event;
-  const _NoteEditor({required this.event});
+class _AdminNotepad extends StatefulWidget {
+  const _AdminNotepad();
   @override
-  State<_NoteEditor> createState() => _NoteEditorState();
+  State<_AdminNotepad> createState() => _AdminNotepadState();
 }
 
-class _NoteEditorState extends State<_NoteEditor> {
+class _AdminNotepadState extends State<_AdminNotepad> {
   bool _loading = true;
   bool _saving = false;
   final _ctrl = TextEditingController();
+  List<Map<String, dynamic>> _notes = [];
 
   @override
   void initState() {
     super.initState();
-    ApiService.fetchBookingNote(widget.event).then((note) {
+    ApiService.fetchAdminNote().then((noteStr) {
       if (mounted) {
         setState(() {
-          _ctrl.text = note;
+          try {
+            if (noteStr.trim().startsWith('[')) {
+              final List<dynamic> decoded = json.decode(noteStr);
+              _notes = decoded
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList();
+            } else if (noteStr.trim().isNotEmpty) {
+              _notes = [
+                {"text": noteStr, "done": false},
+              ];
+            }
+          } catch (_) {
+            if (noteStr.trim().isNotEmpty) {
+              _notes = [
+                {"text": noteStr, "done": false},
+              ];
+            }
+          }
           _loading = false;
         });
       }
     });
   }
 
+  Future<void> _saveNotesToServer() async {
+    setState(() => _saving = true);
+    final encoded = json.encode(_notes);
+    final ok = await ApiService.saveAdminNote(encoded);
+    if (mounted) {
+      setState(() => _saving = false);
+      if (!ok) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Failed to sync notes')));
+      }
+    }
+  }
+
+  void _addNote() {
+    if (_ctrl.text.trim().isEmpty) return;
+    setState(() {
+      _notes.add({"text": _ctrl.text.trim(), "done": false});
+      _ctrl.clear();
+    });
+    _saveNotesToServer();
+  }
+
+  void _deleteNote(int index) {
+    setState(() {
+      _notes.removeAt(index);
+    });
+    _saveNotesToServer();
+  }
+
+  void _toggleNote(int index, bool? val) {
+    setState(() {
+      _notes[index]['done'] = val ?? false;
+    });
+    _saveNotesToServer();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Notes',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _ctrl,
-          minLines: 3,
-          maxLines: 5,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            hintText: 'Enter notes here...',
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _saving
-                ? null
-                : () async {
-                    setState(() => _saving = true);
-                    final ok = await ApiService.saveBookingNote(
-                      widget.event,
-                      _ctrl.text,
-                    );
-                    if (mounted) {
-                      setState(() => _saving = false);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            ok ? 'Note saved!' : 'Failed to save note',
+        ],
+        border: Border.all(color: Colors.grey[100]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.admin_panel_settings,
+                color: Color(0xFF8CB2A4),
+                size: 24,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Admin Notes',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.3,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_notes.isNotEmpty)
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _notes.length,
+              itemBuilder: (context, index) {
+                final note = _notes[index];
+                final isDone = note['done'] == true;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: isDone,
+                          onChanged: (val) => _toggleNote(index, val),
+                          activeColor: const Color(0xFF8CB2A4),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 2.0),
+                          child: Text(
+                            note['text'] ?? '',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: isDone ? Colors.grey : Colors.black87,
+                              decoration: isDone
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                            ),
                           ),
                         ),
-                      );
-                    }
-                  },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF8CB2A4),
-              foregroundColor: Colors.white,
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          size: 20,
+                          color: Colors.grey,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _deleteNote(index),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-            child: _saving
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
+          if (_notes.isNotEmpty) const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _ctrl,
+                  minLines: 1,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
                     ),
-                  )
-                : const Text('Save Note'),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF8CB2A4)),
+                    ),
+                    hintText: 'Add a new note...',
+                    fillColor: Colors.grey[50],
+                    filled: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8CB2A4),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: IconButton(
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.add, color: Colors.white),
+                  onPressed: _saving ? null : _addNote,
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
