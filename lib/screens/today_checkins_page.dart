@@ -400,7 +400,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         ],
         if (hosting.isNotEmpty) ...[
           _buildSectionHeader(
-            'Currently hosting guests',
+            'Currently Hosting',
             Icons.hotel,
             const Color(0xFF2196F3),
             hosting.length,
@@ -412,7 +412,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         ],
         if (cleaning.isNotEmpty) ...[
           _buildSectionHeader(
-            'Rooms to clean',
+            'Todays Cleaning',
             Icons.cleaning_services,
             const Color(0xFFFF9800),
             cleaning.length,
@@ -625,21 +625,26 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                 ),
                 if (specialReq != null) ...[
                   const SizedBox(height: 8),
-                  Text(
-                    'Notes:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                      color: Colors.orange[800],
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    specialReq,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[700],
-                      height: 1.3,
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Notes: ',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            color: Colors.orange[800],
+                          ),
+                        ),
+                        TextSpan(
+                          text: specialReq,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[700],
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -751,23 +756,28 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                 ),
                 if (specialReq != null) ...[
                   const SizedBox(height: 8),
-                  Text(
-                    'Notes:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                      color: isHosting
-                          ? Colors.blue[800]
-                          : const Color(0xFF4A7A6D),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    specialReq,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[700],
-                      height: 1.3,
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Notes: ',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            color: isHosting
+                                ? Colors.blue[800]
+                                : const Color(0xFF4A7A6D),
+                          ),
+                        ),
+                        TextSpan(
+                          text: specialReq,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[700],
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -977,8 +987,8 @@ class _AdminNotepad extends StatefulWidget {
 class _AdminNotepadState extends State<_AdminNotepad> {
   bool _loading = true;
   bool _saving = false;
+  bool _isEditing = false;
   final _ctrl = TextEditingController();
-  List<Map<String, dynamic>> _notes = [];
 
   @override
   void initState() {
@@ -989,20 +999,18 @@ class _AdminNotepadState extends State<_AdminNotepad> {
           try {
             if (noteStr.trim().startsWith('[')) {
               final List<dynamic> decoded = json.decode(noteStr);
-              _notes = decoded
-                  .map((e) => Map<String, dynamic>.from(e))
-                  .toList();
-            } else if (noteStr.trim().isNotEmpty) {
-              _notes = [
-                {"text": noteStr, "done": false},
-              ];
+              if (decoded.isNotEmpty) {
+                // If it was the old list format, just extract all texts and join them
+                _ctrl.text = decoded
+                    .map((e) => e['text'].toString())
+                    .where((s) => s.isNotEmpty)
+                    .join('\n');
+              }
+            } else {
+              _ctrl.text = noteStr;
             }
           } catch (_) {
-            if (noteStr.trim().isNotEmpty) {
-              _notes = [
-                {"text": noteStr, "done": false},
-              ];
-            }
+            _ctrl.text = noteStr;
           }
           _loading = false;
         });
@@ -1012,8 +1020,7 @@ class _AdminNotepadState extends State<_AdminNotepad> {
 
   Future<void> _saveNotesToServer() async {
     setState(() => _saving = true);
-    final encoded = json.encode(_notes);
-    final ok = await ApiService.saveAdminNote(encoded);
+    final ok = await ApiService.saveAdminNote(_ctrl.text);
     if (mounted) {
       setState(() => _saving = false);
       if (!ok) {
@@ -1024,35 +1031,25 @@ class _AdminNotepadState extends State<_AdminNotepad> {
     }
   }
 
-  void _addNote() {
-    if (_ctrl.text.trim().isEmpty) return;
+  void _toggleEdit() {
+    if (_isEditing) {
+      // Saving and exiting edit mode
+      _saveNotesToServer();
+    }
     setState(() {
-      _notes.add({"text": _ctrl.text.trim(), "done": false});
-      _ctrl.clear();
+      _isEditing = !_isEditing;
     });
-    _saveNotesToServer();
-  }
-
-  void _deleteNote(int index) {
-    setState(() {
-      _notes.removeAt(index);
-    });
-    _saveNotesToServer();
-  }
-
-  void _toggleNote(int index, bool? val) {
-    setState(() {
-      _notes[index]['done'] = val ?? false;
-    });
-    _saveNotesToServer();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
+
+    // Hide the entire block if empty and not editing?
+    // Usually a notepad should always be visible so they can click edit.
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -1073,132 +1070,69 @@ class _AdminNotepadState extends State<_AdminNotepad> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(
-                Icons.admin_panel_settings,
-                color: Color(0xFF8CB2A4),
-                size: 24,
-              ),
-              SizedBox(width: 8),
-              Text(
-                'Admin Notes',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -0.3,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (_notes.isNotEmpty)
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _notes.length,
-              itemBuilder: (context, index) {
-                final note = _notes[index];
-                final isDone = note['done'] == true;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: Checkbox(
-                          value: isDone,
-                          onChanged: (val) => _toggleNote(index, val),
-                          activeColor: const Color(0xFF8CB2A4),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 2.0),
-                          child: Text(
-                            note['text'] ?? '',
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: isDone ? Colors.grey : Colors.black87,
-                              decoration: isDone
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                            ),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          size: 20,
-                          color: Colors.grey,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _deleteNote(index),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          if (_notes.isNotEmpty) const SizedBox(height: 12),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: TextField(
-                  controller: _ctrl,
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF8CB2A4)),
-                    ),
-                    hintText: 'Add a new note...',
-                    fillColor: Colors.grey[50],
-                    filled: true,
-                  ),
+              Text(
+                'Notes',
+                style: TextStyle(
+                  fontSize: _isEditing ? 14 : 12, // Subtle header
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[500],
                 ),
               ),
-              const SizedBox(width: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF8CB2A4),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: IconButton(
-                  icon: _saving
+              InkWell(
+                onTap: _toggleEdit,
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: _saving
                       ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.add, color: Colors.white),
-                  onPressed: _saving ? null : _addNote,
+                      : Icon(
+                          _isEditing ? Icons.check : Icons.edit,
+                          size: 18,
+                          color: Colors.grey[600],
+                        ),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 4),
+          if (_isEditing)
+            TextField(
+              controller: _ctrl,
+              minLines: 2,
+              maxLines: null,
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+                hintText: 'Type your notes here...',
+              ),
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.black87,
+                height: 1.4,
+              ),
+            )
+          else
+            Text(
+              _ctrl.text.isEmpty
+                  ? 'Tap the pencil icon to add notes...'
+                  : _ctrl.text,
+              style: TextStyle(
+                fontSize: 14,
+                color: _ctrl.text.isEmpty ? Colors.grey[400] : Colors.black87,
+                fontStyle: _ctrl.text.isEmpty
+                    ? FontStyle.italic
+                    : FontStyle.normal,
+                height: 1.4,
+              ),
+            ),
         ],
       ),
     );
