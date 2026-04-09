@@ -32,12 +32,13 @@ android {
 
     // Define the signing configuration for the release build.
     signingConfigs {
-        // Use create() to define a new signing config named "release"
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String?
-            keyPassword = keystoreProperties["keyPassword"] as String?
-            storeFile = file(keystoreProperties["storeFile"] as String?)
-            storePassword = keystoreProperties["storePassword"] as String?
+        if (keystorePropertiesFile.exists() && keystoreProperties["storeFile"] != null) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String?
+                keyPassword = keystoreProperties["keyPassword"] as String?
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String?
+            }
         }
     }
 
@@ -53,7 +54,11 @@ android {
         // Use getByName() to configure the existing "release" build type
         getByName("release") {
             // Tell Gradle to use the 'release' signing config you just defined.
-            signingConfig = signingConfigs.getByName("release")
+            if (keystorePropertiesFile.exists() && keystoreProperties["storeFile"] != null) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 }
