@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:wild_atlantic_hub/models/booking_event.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
@@ -24,12 +25,14 @@ class _BookingEntry {
   });
 }
 
-class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
+class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindingObserver {
   List<BookingCalendar> _calendars = [];
   bool _isLoading = true;
   String? _errorMessage;
   DateTime? _lastFetchedDate;
   Map<String, String> _cleaningStatusesByRoomName = {};
+  Timer? _refreshTimer;
+  final GlobalKey<_AdminNotepadState> _notepadKey = GlobalKey<_AdminNotepadState>();
 
   DateTime _selectedDate = DateTime(
     DateTime.now().year,
@@ -80,7 +83,31 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fetchData();
+    _startRefreshTimer();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _fetchData(silent: false);
+      _notepadKey.currentState?.fetchNotes();
+    }
+  }
+
+  void _startRefreshTimer() {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      _fetchData(silent: true);
+      _notepadKey.currentState?.fetchNotes();
+    });
   }
 
   @override
@@ -95,12 +122,16 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     }
   }
 
-  Future<void> _fetchData() async {
+  Future<void> _fetchData({bool silent = false}) async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    
+    // Only show loading if it's not a silent refresh, or if we have no data yet
+    if (!silent || _calendars.isEmpty) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       final calendarsFuture = ApiService.fetchBookingCalendars();
@@ -129,15 +160,19 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         setState(() {
           _calendars = calendars;
           _cleaningStatusesByRoomName = statusMap;
-          _isLoading = false;
+          if (!silent || _isLoading) _isLoading = false;
+          _errorMessage = null;
           _lastFetchedDate = DateTime.now();
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Failed to load bookings. Pull to refresh.';
-          _isLoading = false;
+          // If silent fails, we just keep old data and don't show an explicit error overlay
+          if (!silent || _calendars.isEmpty) {
+            _errorMessage = 'Failed to load bookings. Pull to refresh.';
+            _isLoading = false;
+          }
         });
       }
     }
@@ -444,7 +479,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       children: [
-        const _AdminNotepad(),
+        _AdminNotepad(key: _notepadKey),
         if (checkins.isNotEmpty) ...[
           _buildSectionHeader(
             '${_getDateHeader() == "Today" ? "Today's" : _getDateHeader()} Checkins',
@@ -1004,7 +1039,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
 }
 
 class _AdminNotepad extends StatefulWidget {
-  const _AdminNotepad();
+  const _AdminNotepad({super.key});
   @override
   State<_AdminNotepad> createState() => _AdminNotepadState();
 }
@@ -1018,28 +1053,32 @@ class _AdminNotepadState extends State<_AdminNotepad> {
   @override
   void initState() {
     super.initState();
+    fetchNotes();
+  }
+
+  void fetchNotes() {
     ApiService.fetchAdminNote().then((noteStr) {
-      if (mounted) {
-        setState(() {
-          try {
-            if (noteStr.trim().startsWith('[')) {
-              final List<dynamic> decoded = json.decode(noteStr);
-              if (decoded.isNotEmpty) {
-                // If it was the old list format, just extract all texts and join them
-                _ctrl.text = decoded
-                    .map((e) => e['text'].toString())
-                    .where((s) => s.isNotEmpty)
-                    .join('\n');
-              }
-            } else {
-              _ctrl.text = noteStr;
+      if (!mounted) return;
+      if (_isEditing) return; // Do not overwrite user typing
+      setState(() {
+        try {
+          if (noteStr.trim().startsWith('[')) {
+            final List<dynamic> decoded = json.decode(noteStr);
+            if (decoded.isNotEmpty) {
+              // If it was the old list format, just extract all texts and join them
+              _ctrl.text = decoded
+                  .map((e) => e['text'].toString())
+                  .where((s) => s.isNotEmpty)
+                  .join('\n');
             }
-          } catch (_) {
+          } else {
             _ctrl.text = noteStr;
           }
-          _loading = false;
-        });
-      }
+        } catch (_) {
+          _ctrl.text = noteStr;
+        }
+        _loading = false;
+      });
     });
   }
 
