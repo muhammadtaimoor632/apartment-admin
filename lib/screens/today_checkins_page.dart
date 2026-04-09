@@ -358,17 +358,6 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     return entries;
   }
 
-  List<_BookingEntry> get _readyForCheckin {
-    return _roomsToClean.where((entry) {
-        if (!entry.isCompleted) return false;
-        
-        if (entry.nextEvent != null) {
-            final ns = DateTime(entry.nextEvent!.start.year, entry.nextEvent!.start.month, entry.nextEvent!.start.day);
-            return ns.isAtSameMomentAs(_selectedDate);
-        }
-        return false;
-    }).toList();
-  }
 
   String _formatTo24Hour(String timeString) {
     try {
@@ -492,12 +481,10 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     final checkins = _checkinsToday;
     final hosting = _currentlyHosting;
     final cleaning = _roomsToClean;
-    final ready = _readyForCheckin;
 
     if (checkins.isEmpty &&
         hosting.isEmpty &&
-        cleaning.isEmpty &&
-        ready.isEmpty) {
+        cleaning.isEmpty) {
       return ListView(
         children: [
           SizedBox(
@@ -556,22 +543,13 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
         ],
         if (cleaning.isNotEmpty) ...[
           _buildSectionHeader(
-            '${_getDateHeader() == "Today" ? "Today's" : _getDateHeader()} Cleaning',
+            'Cleaning',
             Icons.cleaning_services,
             const Color(0xFFFF9800),
             cleaning.length,
           ),
           ...cleaning.map((e) => _buildCard(e, isCheckout: true)),
           const SizedBox(height: 32),
-        ],
-        if (ready.isNotEmpty) ...[
-          _buildSectionHeader(
-            'Ready for guest check-in',
-            Icons.check_circle_outline,
-            const Color(0xFF4CAF50),
-            ready.length,
-          ),
-          ...ready.map((e) => _buildCard(e, isCheckout: true)),
         ],
       ],
     );
@@ -696,90 +674,88 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
         child: InkWell(
           onTap: () => _showEventDetail(entry, isCheckout: true),
           borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-              border: Border.all(color: Colors.orange.withOpacity(0.2)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            entry.event.room,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: -0.1,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            subtitle,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
+          child: Stack(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
-                    if (entry.nextEvent != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange[50],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.access_time,
-                              size: 16,
-                              color: Colors.orange,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              timeInfo,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                                color: Colors.orange[900],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    if (entry.isCompleted) ...[
-                      const SizedBox(width: 12),
-                      const Icon(Icons.check_circle, color: Colors.green, size: 28),
-                    ],
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
                   ],
+                  border: Border.all(color: Colors.orange.withOpacity(0.2)),
                 ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                entry.event.room,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -0.1,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                subtitle,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (entry.nextEvent != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange[50],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.access_time,
+                                  size: 16,
+                                  color: Colors.orange,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  timeInfo,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                    color: Colors.orange[900],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
                 if (specialReq != null) ...[
                   const SizedBox(height: 8),
                   RichText(
@@ -808,10 +784,22 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
               ],
             ),
           ),
-        ),
-      );
-    } else {
-      final event = entry.event;
+          if (entry.isCompleted)
+            const Positioned(
+              top: 8,
+              right: 8,
+              child: Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 16,
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+} else {
+  final event = entry.event;
       final arrivalTime = _getArrivalTime(event.formData) ?? '15:00';
       String displayTime;
       if (isHosting) {
