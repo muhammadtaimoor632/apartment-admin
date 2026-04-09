@@ -363,30 +363,38 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
           }
         }
 
-        if (lastCheckoutEvent != null) {
-          final upcoming = sortedEvents.where((e) {
-            final startDate = DateTime(e.start.year, e.start.month, e.start.day);
-            return startDate.isAfter(targetDate) || (startDate.isAtSameMomentAs(targetDate) && e != lastCheckoutEvent);
-          }).toList();
+        final upcoming = sortedEvents.where((e) {
+          final startDate = DateTime(e.start.year, e.start.month, e.start.day);
+          return startDate.isAfter(targetDate) || (startDate.isAtSameMomentAs(targetDate) && e != lastCheckoutEvent);
+        }).toList();
 
-          final nextEvent = upcoming.isNotEmpty ? upcoming.first : null;
-          
+        final nextEvent = upcoming.isNotEmpty ? upcoming.first : null;
+
+        if (lastCheckoutEvent != null || nextEvent != null) {
           bool effectiveIsCleaned = isCleaned;
           final todayReal = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
-          final checkoutDate = DateTime(lastCheckoutEvent!.end.year, lastCheckoutEvent!.end.month, lastCheckoutEvent!.end.day);
-          
-          // If the checkout event happens in the future, it intrinsically cannot 
-          // have been cleaned yet. (The LIVE 'cleaned' status belongs to an older stay).
-          if (checkoutDate.isAfter(todayReal)) {
-             effectiveIsCleaned = false;
+          bool isOverdue = false;
+
+          if (lastCheckoutEvent != null) {
+            final checkoutDate = DateTime(lastCheckoutEvent.end.year, lastCheckoutEvent.end.month, lastCheckoutEvent.end.day);
+            
+            if (checkoutDate.isAfter(todayReal)) {
+               effectiveIsCleaned = false;
+            }
+            
+            isOverdue = !effectiveIsCleaned && checkoutDate.isBefore(targetDate);
+          } else if (nextEvent != null) {
+            // We have a check-in coming, but the previous check-out is purged from calendar.
+            // We default to not overdue, but displaying it normally.
+            isOverdue = false;
           }
           
-          bool isOverdue = !effectiveIsCleaned && checkoutDate.isBefore(targetDate);
+          final eventToUse = lastCheckoutEvent ?? nextEvent!;
           
           entries.add(
             _BookingEntry(
               calendarName: cal.name,
-              event: lastCheckoutEvent,
+              event: eventToUse,
               nextEvent: nextEvent,
               isCompleted: effectiveIsCleaned,
               isOverdue: isOverdue,
