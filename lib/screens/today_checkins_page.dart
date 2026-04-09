@@ -458,18 +458,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                 },
               )
             : null,
-        title: GestureDetector(
-          onTap: () => _selectDate(context),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _getDateHeader(),
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-              const Icon(Icons.arrow_drop_down, color: Colors.white),
-            ],
-          ),
+        title: const Text(
+          'Overview',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: const Color(0xFF8CB2A4),
         elevation: 0,
@@ -503,7 +494,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
         hosting.isEmpty &&
         cleaning.isEmpty) {
       return ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         children: [
+          _buildDateSelector(),
           SizedBox(
             height: MediaQuery.of(context).size.height * 0.7,
             child: Center(
@@ -535,6 +528,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       children: [
+        _buildDateSelector(),
         _AdminNotepad(key: _notepadKey),
         if (checkins.isNotEmpty) ...[
           _buildSectionHeader(
@@ -569,6 +563,73 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
           const SizedBox(height: 32),
         ],
       ],
+    );
+  }
+
+  Widget _buildDateSelector() {
+    return GestureDetector(
+      onTap: () => _selectDate(context),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              offset: const Offset(0, 2),
+              blurRadius: 6,
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8CB2A4).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.calendar_month_rounded,
+                    color: Color(0xFF5D8A7A),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Selected Date',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[500],
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _getDateHeader(),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2D3E3A),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const Icon(Icons.arrow_drop_down_rounded, color: Colors.grey),
+          ],
+        ),
+      ),
     );
   }
 
