@@ -344,9 +344,27 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isToday = _selectedDate.year == DateTime.now().year &&
+        _selectedDate.month == DateTime.now().month &&
+        _selectedDate.day == DateTime.now().day;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FC),
       appBar: AppBar(
+        leading: !isToday
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () {
+                  setState(() {
+                    _selectedDate = DateTime(
+                      DateTime.now().year,
+                      DateTime.now().month,
+                      DateTime.now().day,
+                    );
+                  });
+                },
+              )
+            : null,
         title: GestureDetector(
           onTap: () => _selectDate(context),
           child: Row(
@@ -408,7 +426,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'All quiet today!',
+                    'All quiet on ${_getDateHeader() == "Today" ? "today" : _getDateHeader()}!',
                     style: TextStyle(
                       fontSize: 18,
                       color: Colors.grey[500],
