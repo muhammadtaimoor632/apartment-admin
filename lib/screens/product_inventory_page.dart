@@ -12,7 +12,8 @@ class ProductInventoryPage extends StatefulWidget {
 }
 
 class _ProductInventoryPageState extends State<ProductInventoryPage> {
-  late Future<(List<CleaningDetails>, Map<String, int>, String)> _dataFuture;
+  late Future<(List<CleaningDetails>, Map<String, int>)> _dataFuture;
+  String _currentNote = '';
 
   // Brand colour palette
   static const Color _primary = Color(0xFF8CB2A4);
@@ -22,9 +23,19 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
   void initState() {
     super.initState();
     _dataFuture = _fetchData();
+    _fetchNote();
   }
 
-  Future<(List<CleaningDetails>, Map<String, int>, String)> _fetchData() async {
+  Future<void> _fetchNote() async {
+    final note = await ApiService.fetchGlobalInventoryNote();
+    if (mounted) {
+      setState(() {
+        _currentNote = note;
+      });
+    }
+  }
+
+  Future<(List<CleaningDetails>, Map<String, int>)> _fetchData() async {
     final apartments = await ApiService.fetchCleaningDetails();
 
     // Fetch individual inventory item counts per apartment
@@ -40,9 +51,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
       }),
     );
 
-    final note = await ApiService.fetchGlobalInventoryNote();
-
-    return (apartments, inventoryCounts, note);
+    return (apartments, inventoryCounts);
   }
 
   void _navigateToInventoryList(
@@ -73,9 +82,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
               context: context,
               builder: (ctx) => const _GlobalInventoryNotesDialog(),
             );
-            setState(() {
-              _dataFuture = _fetchData();
-            });
+            _fetchNote();
           },
         ),
         title: const Text(
@@ -88,13 +95,16 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() {
-              _dataFuture = _fetchData();
-            }),
+            onPressed: () {
+              _fetchNote();
+              setState(() {
+                _dataFuture = _fetchData();
+              });
+            },
           ),
         ],
       ),
-      body: FutureBuilder<(List<CleaningDetails>, Map<String, int>, String)>(
+      body: FutureBuilder<(List<CleaningDetails>, Map<String, int>)>(
         future: _dataFuture,
         builder: (context, snapshot) => _buildBody(snapshot),
       ),
@@ -102,7 +112,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
   }
 
   Widget _buildBody(
-    AsyncSnapshot<(List<CleaningDetails>, Map<String, int>, String)> snapshot,
+    AsyncSnapshot<(List<CleaningDetails>, Map<String, int>)> snapshot,
   ) {
     if (snapshot.connectionState == ConnectionState.waiting) {
       return const Center(child: CircularProgressIndicator(color: _primary));
@@ -134,16 +144,16 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
 
     final apartments = snapshot.data!.$1;
     final inventoryCounts = snapshot.data!.$2;
-    final note = snapshot.data!.$3;
-    final hasNote = note.trim().isNotEmpty;
+    final hasNote = _currentNote.trim().isNotEmpty;
 
     return RefreshIndicator(
       color: _primary,
-      onRefresh: () {
+      onRefresh: () async {
+        _fetchNote();
         setState(() {
           _dataFuture = _fetchData();
         });
-        return _dataFuture;
+        await _dataFuture;
       },
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
@@ -152,12 +162,8 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
         itemBuilder: (context, index) {
           if (hasNote && index == 0) {
             return _NoticesCard(
-              initialNote: note,
-              onRefreshRequested: () {
-                setState(() {
-                  _dataFuture = _fetchData();
-                });
-              },
+              initialNote: _currentNote,
+              onRefreshRequested: () {},
             );
           }
 
