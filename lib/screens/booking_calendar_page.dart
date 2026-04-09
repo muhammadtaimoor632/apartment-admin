@@ -17,7 +17,7 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
   bool _isLoading = true;
   String? _errorMessage;
   late DateTime _currentMonth;
-  int _selectedCalendarIndex = 0;
+  int _selectedCalendarIndex = -1;
 
   // Filter state
   String _selectedFilter = 'all'; // all, active, upcoming, blocked
@@ -56,6 +56,23 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
 
   BookingCalendar? get _activeCalendar {
     if (_calendars.isEmpty) return null;
+    
+    if (_selectedCalendarIndex == -1) {
+      final allEvents = <BookingEvent>[];
+      final allRooms = <BookingRoom>[];
+      for (final cal in _calendars) {
+        allEvents.addAll(cal.events);
+        allRooms.addAll(cal.rooms);
+      }
+      return BookingCalendar(
+        id: 'all',
+        name: 'Both Properties',
+        rooms: allRooms,
+        events: allEvents,
+        lastSynced: _calendars.first.lastSynced,
+      );
+    }
+    
     if (_selectedCalendarIndex >= _calendars.length) return _calendars.first;
     return _calendars[_selectedCalendarIndex];
   }
@@ -224,41 +241,59 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
   // ─── Calendar selector ──────────────────────────────────────────
 
   Widget _buildCalendarSelector() {
-    return Padding(
-      padding: const EdgeInsets.all(4),
-      child: Row(
-        children: _calendars.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final cal = entry.value;
-          final isSelected = idx == _selectedCalendarIndex;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedCalendarIndex = idx),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFF8CB2A4)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  cal.name,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? Colors.white : Colors.grey[600],
-                  ),
-                ),
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: _selectedCalendarIndex,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF8CB2A4)),
+          isExpanded: true,
+          dropdownColor: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[800],
+          ),
+          onChanged: (int? newValue) {
+            if (newValue != null) {
+              setState(() {
+                _selectedCalendarIndex = newValue;
+              });
+            }
+          },
+          items: [
+            DropdownMenuItem<int>(
+              value: -1,
+              child: Row(
+                children: [
+                  const Icon(Icons.domain_rounded, size: 20, color: Color(0xFF8CB2A4)),
+                  const SizedBox(width: 12),
+                  const Text('All Properties'),
+                ],
               ),
             ),
-          );
-        }).toList(),
+            ..._calendars.asMap().entries.map((entry) {
+              return DropdownMenuItem<int>(
+                value: entry.key,
+                child: Row(
+                  children: [
+                    Icon(Icons.apartment_rounded, size: 20, color: Colors.grey[400]),
+                    const SizedBox(width: 12),
+                    Text(entry.value.name),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
