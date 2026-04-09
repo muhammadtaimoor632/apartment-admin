@@ -34,11 +34,15 @@ class ApiService {
 
   // --- Cleaning Status Endpoints ---
 
+  static Map<String, String> lastKnownStatuses = {};
+
   static Future<Map<String, dynamic>> fetchCleaningStatuses() async {
     final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/all');
     final response = await http.get(uri);
     if (response.statusCode == 200) {
-      return json.decode(response.body);
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      lastKnownStatuses = data.map((k, v) => MapEntry(k, v.toString()));
+      return data;
     } else {
       throw Exception('Failed to fetch statuses from server.');
     }
@@ -63,6 +67,8 @@ class ApiService {
     required int rating,
     int? durationMinutes,
   }) {
+    lastKnownStatuses[apartmentId] = statusToSend;
+
     final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/update');
     final Map<String, dynamic> requestBody = {
       'status': statusToSend,

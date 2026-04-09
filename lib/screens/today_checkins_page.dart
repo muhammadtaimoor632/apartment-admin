@@ -104,9 +104,19 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (ApiService.lastKnownStatuses.isNotEmpty) {
+      _cleaningStatusesByRoomName = Map.from(ApiService.lastKnownStatuses);
+    }
     _fetchData();
     _startRefreshTimer();
     _refreshSub = TodayCheckinsPage.refreshStream.stream.listen((_) {
+      if (mounted) {
+        setState(() {
+          if (ApiService.lastKnownStatuses.isNotEmpty) {
+            _cleaningStatusesByRoomName = Map.from(ApiService.lastKnownStatuses);
+          }
+        });
+      }
       _fetchData(silent: true);
       _notepadKey.currentState?.fetchNotes();
     });
@@ -123,6 +133,13 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      if (mounted) {
+        setState(() {
+          if (ApiService.lastKnownStatuses.isNotEmpty) {
+            _cleaningStatusesByRoomName = Map.from(ApiService.lastKnownStatuses);
+          }
+        });
+      }
       _fetchData(silent: false);
       _notepadKey.currentState?.fetchNotes();
     }
