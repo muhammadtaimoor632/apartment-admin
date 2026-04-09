@@ -31,6 +31,52 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   DateTime? _lastFetchedDate;
   Map<String, String> _cleaningStatusesByRoomName = {};
 
+  DateTime _selectedDate = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+    DateTime.now().day,
+  );
+
+  String _getDateHeader() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (_selectedDate.isAtSameMomentAs(today)) return 'Today';
+    final tomorrow = today.add(const Duration(days: 1));
+    if (_selectedDate.isAtSameMomentAs(tomorrow)) return 'Tomorrow';
+    final yesterday = today.subtract(const Duration(days: 1));
+    if (_selectedDate.isAtSameMomentAs(yesterday)) return 'Yesterday';
+
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return '${_selectedDate.day} ${months[_selectedDate.month - 1]}, ${_selectedDate.year}';
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = DateTime(picked.year, picked.month, picked.day);
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -98,11 +144,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   }
 
   List<_BookingEntry> get _checkinsToday {
-    final today = DateTime(
-      DateTime.now().year,
-      DateTime.now().month,
-      DateTime.now().day,
-    );
+    final targetDate = _selectedDate;
     final entries = <_BookingEntry>[];
     for (final cal in _calendars) {
       for (final event in cal.events) {
@@ -112,7 +154,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
           event.start.month,
           event.start.day,
         );
-        if (start.isAtSameMomentAs(today)) {
+        if (start.isAtSameMomentAs(targetDate)) {
           entries.add(_BookingEntry(calendarName: cal.name, event: event));
         }
       }
@@ -121,11 +163,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   }
 
   List<_BookingEntry> get _currentlyHosting {
-    final today = DateTime(
-      DateTime.now().year,
-      DateTime.now().month,
-      DateTime.now().day,
-    );
+    final targetDate = _selectedDate;
     final entries = <_BookingEntry>[];
     for (final cal in _calendars) {
       for (final event in cal.events) {
@@ -136,7 +174,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
           event.start.day,
         );
         final end = DateTime(event.end.year, event.end.month, event.end.day);
-        if (start.isBefore(today) && end.isAfter(today)) {
+        if (start.isBefore(targetDate) && end.isAfter(targetDate)) {
           entries.add(_BookingEntry(calendarName: cal.name, event: event));
         }
       }
@@ -145,11 +183,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   }
 
   List<_BookingEntry> get _roomsToClean {
-    final today = DateTime(
-      DateTime.now().year,
-      DateTime.now().month,
-      DateTime.now().day,
-    );
+    final targetDate = _selectedDate;
     final entries = <_BookingEntry>[];
 
     for (final cal in _calendars) {
@@ -172,16 +206,16 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         final roomEvents = byRoom[roomName]!;
         for (final event in roomEvents) {
           final end = DateTime(event.end.year, event.end.month, event.end.day);
-          if (end.isAtSameMomentAs(today)) {
+          if (end.isAtSameMomentAs(targetDate)) {
             final upcoming = roomEvents.where((e) {
               final startDate = DateTime(
                 e.start.year,
                 e.start.month,
                 e.start.day,
               );
-              // It's the next booking if it starts today or in the future
-              return startDate.isAfter(today) ||
-                  (startDate.isAtSameMomentAs(today) && e != event);
+              // It's the next booking if it starts on targetDate or in the future
+              return startDate.isAfter(targetDate) ||
+                  (startDate.isAtSameMomentAs(targetDate) && e != event);
             }).toList()..sort((a, b) => a.start.compareTo(b.start));
 
             final nextEvent = upcoming.isNotEmpty ? upcoming.first : null;
@@ -200,11 +234,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   }
 
   List<_BookingEntry> get _readyForCheckin {
-    final today = DateTime(
-      DateTime.now().year,
-      DateTime.now().month,
-      DateTime.now().day,
-    );
+    final targetDate = _selectedDate;
     final entries = <_BookingEntry>[];
 
     for (final cal in _calendars) {
@@ -227,15 +257,15 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         final roomEvents = byRoom[roomName]!;
         for (final event in roomEvents) {
           final end = DateTime(event.end.year, event.end.month, event.end.day);
-          if (end.isAtSameMomentAs(today)) {
+          if (end.isAtSameMomentAs(targetDate)) {
             final upcoming = roomEvents.where((e) {
               final startDate = DateTime(
                 e.start.year,
                 e.start.month,
                 e.start.day,
               );
-              return startDate.isAfter(today) ||
-                  (startDate.isAtSameMomentAs(today) && e != event);
+              return startDate.isAfter(targetDate) ||
+                  (startDate.isAtSameMomentAs(targetDate) && e != event);
             }).toList()..sort((a, b) => a.start.compareTo(b.start));
 
             final nextEvent = upcoming.isNotEmpty ? upcoming.first : null;
@@ -317,9 +347,18 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FC),
       appBar: AppBar(
-        title: const Text(
-          'Today',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: GestureDetector(
+          onTap: () => _selectDate(context),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _getDateHeader(),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              const Icon(Icons.arrow_drop_down, color: Colors.white),
+            ],
+          ),
         ),
         backgroundColor: const Color(0xFF8CB2A4),
         elevation: 0,
@@ -390,7 +429,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         const _AdminNotepad(),
         if (checkins.isNotEmpty) ...[
           _buildSectionHeader(
-            'Today\'s Checkin',
+            '${_getDateHeader() == "Today" ? "Today's" : _getDateHeader()} Checkins',
             Icons.flight_land,
             const Color(0xFF4CAF50),
             checkins.length,
@@ -412,7 +451,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
         ],
         if (cleaning.isNotEmpty) ...[
           _buildSectionHeader(
-            'Todays Cleaning',
+            '${_getDateHeader() == "Today" ? "Today's" : _getDateHeader()} Cleaning',
             Icons.cleaning_services,
             const Color(0xFFFF9800),
             cleaning.length,
