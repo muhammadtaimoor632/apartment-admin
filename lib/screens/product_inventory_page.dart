@@ -151,47 +151,13 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
         separatorBuilder: (context, index) => const SizedBox(height: 14),
         itemBuilder: (context, index) {
           if (hasNote && index == 0) {
-            return Container(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.red.withValues(alpha: 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                  BoxShadow(
-                    color: Colors.red.withValues(alpha: 0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-                border: Border.all(color: Colors.red.shade100),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Required Fixes',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.red,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    note,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.red.shade900,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
+            return _NoticesCard(
+              initialNote: note,
+              onRefreshRequested: () {
+                setState(() {
+                  _dataFuture = _fetchData();
+                });
+              },
             );
           }
 
@@ -340,6 +306,159 @@ class _ApartmentInventoryCard extends StatelessWidget {
   }
 }
 
+class _NoticesCard extends StatefulWidget {
+  final String initialNote;
+  final VoidCallback onRefreshRequested;
+
+  const _NoticesCard({
+    required this.initialNote,
+    required this.onRefreshRequested,
+  });
+
+  @override
+  State<_NoticesCard> createState() => _NoticesCardState();
+}
+
+class _NoticesCardState extends State<_NoticesCard> {
+  late String _currentNote;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentNote = widget.initialNote;
+  }
+
+  @override
+  void didUpdateWidget(covariant _NoticesCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialNote != widget.initialNote) {
+      _currentNote = widget.initialNote;
+    }
+  }
+
+  Future<void> _toggleLine(int index, List<String> lines) async {
+    if (_isSaving) return;
+
+    final line = lines[index];
+    final isChecked =
+        line.trimLeft().startsWith('[x]') || line.trimLeft().startsWith('[X]');
+    final displayText = line.replaceFirst(RegExp(r'^\s*\[[xX ]\]\s*'), '');
+
+    lines[index] = isChecked ? '[ ] $displayText' : '[x] $displayText';
+    final newNote = lines.join('\n');
+
+    setState(() {
+      _currentNote = newNote;
+      _isSaving = true;
+    });
+
+    await ApiService.saveGlobalInventoryNote(newNote);
+
+    if (mounted) {
+      setState(() {
+        _isSaving = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lines =
+        _currentNote.split('\n').where((l) => l.trim().isNotEmpty).toList();
+    if (lines.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.red.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(color: Colors.red.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Notices',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.red,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...lines.asMap().entries.map((entry) {
+            final lineIndex = entry.key;
+            final originalLine = entry.value;
+            final isChecked =
+                originalLine.trimLeft().startsWith('[x]') ||
+                originalLine.trimLeft().startsWith('[X]');
+            final displayText = originalLine.replaceFirst(
+              RegExp(r'^\s*\[[xX ]\]\s*'),
+              '',
+            );
+
+            return InkWell(
+              onTap: () => _toggleLine(lineIndex, lines),
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      isChecked
+                          ? Icons.check_box_rounded
+                          : Icons.check_box_outline_blank_rounded,
+                      size: 20,
+                      color:
+                          isChecked
+                              ? Colors.red.shade300
+                              : Colors.red.shade700,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Text(
+                          displayText,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color:
+                                isChecked
+                                    ? Colors.red.shade300
+                                    : Colors.red.shade900,
+                            decoration:
+                                isChecked ? TextDecoration.lineThrough : null,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Global Inventory Notes Popup Dialog
 // ─────────────────────────────────────────────────────────────────────────────
@@ -411,7 +530,7 @@ class _GlobalInventoryNotesDialogState
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Required Fixes',
+                  'Notices',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 IconButton(
@@ -439,8 +558,8 @@ class _GlobalInventoryNotesDialogState
                   controller: _ctrl,
                   maxLines: null,
                   expands: true,
-                  decoration: InputDecoration(
-                    hintText: 'Type required fixes here...',
+                  decoration: const InputDecoration(
+                    hintText: 'Type notices here... (Each line is a checkbox)',
                     border: InputBorder.none,
                     filled: true,
                     fillColor: Colors.white,
