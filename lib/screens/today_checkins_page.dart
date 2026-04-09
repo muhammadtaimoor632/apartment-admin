@@ -21,11 +21,13 @@ class _BookingEntry {
   final BookingEvent event;
   final BookingEvent? nextEvent;
   final bool isCompleted;
+  final bool isOverdue;
   _BookingEntry({
     required this.calendarName,
     required this.event,
     this.nextEvent,
     this.isCompleted = false,
+    this.isOverdue = false,
   });
 }
 
@@ -361,12 +363,15 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
              effectiveIsCleaned = false;
           }
           
+          bool isOverdue = !effectiveIsCleaned && checkoutDate.isBefore(targetDate);
+          
           entries.add(
             _BookingEntry(
               calendarName: cal.name,
               event: lastCheckoutEvent,
               nextEvent: nextEvent,
               isCompleted: effectiveIsCleaned,
+              isOverdue: isOverdue,
             ),
           );
         }
@@ -712,6 +717,12 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     if (isCheckout) {
       final String subtitle;
       final String timeInfo;
+      
+      final Color baseColor = entry.isOverdue ? Colors.red[600]! : Colors.orange;
+      final Color bgColor = entry.isOverdue ? Colors.red[50]! : Colors.orange[50]!;
+      final Color borderColor = entry.isOverdue ? Colors.red.withOpacity(0.4) : Colors.orange.withOpacity(0.2);
+      final Color textColor = entry.isOverdue ? Colors.red[900]! : Colors.orange[900]!;
+
       if (entry.nextEvent != null) {
         final nextArrival =
             _getArrivalTime(entry.nextEvent!.formData) ?? '15:00';
@@ -739,9 +750,13 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
 
         timeInfo = nextArrival;
       } else {
-        subtitle = 'No upcoming guest found';
+        subtitle = entry.isOverdue ? 'Overdue Cleaning' : 'No upcoming guest found';
         timeInfo = '--';
       }
+
+      final displaySubtitle = entry.isOverdue && entry.nextEvent != null 
+          ? 'OVERDUE · $subtitle' 
+          : subtitle;
 
       final specialReq = _getSpecialRequestString(
         entry.nextEvent?.formData,
@@ -772,7 +787,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                       offset: const Offset(0, 2),
                     ),
                   ],
-                  border: Border.all(color: Colors.orange.withOpacity(0.2)),
+                  border: Border.all(color: borderColor, width: entry.isOverdue ? 1.5 : 1.0),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -793,11 +808,11 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                subtitle,
+                                displaySubtitle,
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.w500,
+                                  color: entry.isOverdue ? Colors.red[600] : Colors.grey[600],
+                                  fontWeight: entry.isOverdue ? FontWeight.w600 : FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -810,16 +825,16 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.orange[50],
+                              color: bgColor,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.access_time,
                                   size: 16,
-                                  color: Colors.orange,
+                                  color: baseColor,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
@@ -827,7 +842,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                                   style: TextStyle(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 13,
-                                    color: Colors.orange[900],
+                                    color: textColor,
                                   ),
                                 ),
                               ],
@@ -845,7 +860,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 12,
-                            color: Colors.orange[800],
+                            color: entry.isOverdue ? Colors.red[800] : Colors.orange[800],
                           ),
                         ),
                         TextSpan(
