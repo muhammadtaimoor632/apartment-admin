@@ -18,10 +18,12 @@ class _BookingEntry {
   final String calendarName;
   final BookingEvent event;
   final BookingEvent? nextEvent;
+  final bool isCompleted;
   _BookingEntry({
     required this.calendarName,
     required this.event,
     this.nextEvent,
+    this.isCompleted = false,
   });
 }
 
@@ -249,31 +251,46 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
           RegExp(r'[^a-z0-9]'),
           '',
         );
-        final status =
-            _cleaningStatusesByRoomName[normRoomName] ?? 'not_cleaned';
-        if (status == 'cleaned') continue;
+        final status = _cleaningStatusesByRoomName[normRoomName] ?? 'not_cleaned';
+        final isCleaned = status == 'cleaned';
 
         final roomEvents = byRoom[roomName]!;
-        for (final event in roomEvents) {
-          final end = DateTime(event.end.year, event.end.month, event.end.day);
+        final sortedEvents = List.of(roomEvents)..sort((a, b) => a.end.compareTo(b.end));
+
+        BookingEvent? lastCheckoutEvent;
+        for (final e in sortedEvents) {
+          final end = DateTime(e.end.year, e.end.month, e.end.day);
+          if (end.isBefore(targetDate) || end.isAtSameMomentAs(targetDate)) {
+            lastCheckoutEvent = e;
+          }
+        }
+
+        if (lastCheckoutEvent != null) {
+          final end = DateTime(lastCheckoutEvent.end.year, lastCheckoutEvent.end.month, lastCheckoutEvent.end.day);
+          
+          bool shouldInclude = false;
+          
           if (end.isAtSameMomentAs(targetDate)) {
-            final upcoming = roomEvents.where((e) {
-              final startDate = DateTime(
-                e.start.year,
-                e.start.month,
-                e.start.day,
-              );
-              // It's the next booking if it starts on targetDate or in the future
-              return startDate.isAfter(targetDate) ||
-                  (startDate.isAtSameMomentAs(targetDate) && e != event);
+            shouldInclude = true;
+          } else if (end.isBefore(targetDate)) {
+            if (!isCleaned) {
+              shouldInclude = true; // overdue cleanings roll over
+            }
+          }
+          
+          if (shouldInclude) {
+            final upcoming = sortedEvents.where((e) {
+              final startDate = DateTime(e.start.year, e.start.month, e.start.day);
+              return startDate.isAfter(end) || (startDate.isAtSameMomentAs(end) && e != lastCheckoutEvent);
             }).toList()..sort((a, b) => a.start.compareTo(b.start));
 
             final nextEvent = upcoming.isNotEmpty ? upcoming.first : null;
             entries.add(
               _BookingEntry(
                 calendarName: cal.name,
-                event: event,
+                event: lastCheckoutEvent,
                 nextEvent: nextEvent,
+                isCompleted: isCleaned,
               ),
             );
           }
@@ -737,6 +754,10 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                           ],
                         ),
                       ),
+                    if (entry.isCompleted) ...[
+                      const SizedBox(width: 12),
+                      const Icon(Icons.check_circle, color: Colors.green, size: 28),
+                    ],
                   ],
                 ),
                 if (specialReq != null) ...[
