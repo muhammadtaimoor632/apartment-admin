@@ -49,14 +49,8 @@ class _ApartmentInventoryListPageState
       final stockA = a.stock[widget.apartmentId] ?? 0;
       final stockB = b.stock[widget.apartmentId] ?? 0;
 
-      final lowA = stockA <= 1;
-      final lowB = stockB <= 1;
-
-      if (lowA && !lowB) return -1;
-      if (!lowA && lowB) return 1;
-
-      if (lowA && lowB) {
-        if (stockA != stockB) return stockA.compareTo(stockB);
+      if (stockA != stockB) {
+        return stockA.compareTo(stockB);
       }
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });

@@ -12,7 +12,7 @@ class ProductInventoryPage extends StatefulWidget {
 }
 
 class _ProductInventoryPageState extends State<ProductInventoryPage> {
-  late Future<(List<CleaningDetails>, Map<String, int>)> _dataFuture;
+  late Future<(List<CleaningDetails>, Map<String, int>, Map<String, bool>)> _dataFuture;
   String _currentNote = '';
 
   // Brand colour palette
@@ -35,23 +35,27 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
     }
   }
 
-  Future<(List<CleaningDetails>, Map<String, int>)> _fetchData() async {
+  Future<(List<CleaningDetails>, Map<String, int>, Map<String, bool>)> _fetchData() async {
     final apartments = await ApiService.fetchCleaningDetails();
 
     // Fetch individual inventory item counts per apartment
     final inventoryCounts = <String, int>{};
+    final hasLowStock = <String, bool>{};
+    
     await Future.wait(
       apartments.map((apt) async {
         try {
           final items = await ApiService.fetchInventoryForApartment(apt.id);
           inventoryCounts[apt.id] = items.length;
+          hasLowStock[apt.id] = items.any((item) => (item.stock[apt.id] ?? 0) <= 2);
         } catch (_) {
           inventoryCounts[apt.id] = 0;
+          hasLowStock[apt.id] = false;
         }
       }),
     );
 
-    return (apartments, inventoryCounts);
+    return (apartments, inventoryCounts, hasLowStock);
   }
 
   void _navigateToInventoryList(
@@ -104,7 +108,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
           ),
         ],
       ),
-      body: FutureBuilder<(List<CleaningDetails>, Map<String, int>)>(
+      body: FutureBuilder<(List<CleaningDetails>, Map<String, int>, Map<String, bool>)>(
         future: _dataFuture,
         builder: (context, snapshot) => _buildBody(snapshot),
       ),
@@ -112,7 +116,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
   }
 
   Widget _buildBody(
-    AsyncSnapshot<(List<CleaningDetails>, Map<String, int>)> snapshot,
+    AsyncSnapshot<(List<CleaningDetails>, Map<String, int>, Map<String, bool>)> snapshot,
   ) {
     if (snapshot.connectionState == ConnectionState.waiting) {
       return const Center(child: CircularProgressIndicator(color: _primary));
@@ -144,6 +148,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
 
     final apartments = snapshot.data!.$1;
     final inventoryCounts = snapshot.data!.$2;
+    final hasLowStockMap = snapshot.data!.$3;
     final hasNote = _currentNote.trim().isNotEmpty;
 
     return RefreshIndicator(
@@ -170,9 +175,11 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
           final aptIndex = hasNote ? index - 1 : index;
           final apartment = apartments[aptIndex];
           final inventoryCount = inventoryCounts[apartment.id] ?? 0;
+          final isLowStock = hasLowStockMap[apartment.id] ?? false;
           return _ApartmentInventoryCard(
             apartment: apartment,
             inventoryCount: inventoryCount,
+            isLowStock: isLowStock,
             onTap: () =>
                 _navigateToInventoryList(context, apartment.id, apartment.name),
           );
@@ -185,6 +192,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
 class _ApartmentInventoryCard extends StatelessWidget {
   final CleaningDetails apartment;
   final int inventoryCount;
+  final bool isLowStock;
   final VoidCallback onTap;
 
   static const Color _primary = Color(0xFF8CB2A4);
@@ -193,6 +201,7 @@ class _ApartmentInventoryCard extends StatelessWidget {
   const _ApartmentInventoryCard({
     required this.apartment,
     required this.inventoryCount,
+    required this.isLowStock,
     required this.onTap,
   });
 
@@ -254,23 +263,52 @@ class _ApartmentInventoryCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _primary.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          '$inventoryCount item${inventoryCount == 1 ? '' : 's'}',
-                          style: const TextStyle(
-                            color: _primaryDark,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _primary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '$inventoryCount item${inventoryCount == 1 ? '' : 's'}',
+                              style: const TextStyle(
+                                color: _primaryDark,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
-                        ),
+                          if (isLowStock) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.warning_amber_rounded, size: 12, color: Colors.redAccent),
+                                  const SizedBox(width: 4),
+                                  const Text(
+                                    'Low Stock',
+                                    style: TextStyle(
+                                      color: Colors.redAccent,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ]
                       ),
                     ],
                   ),
