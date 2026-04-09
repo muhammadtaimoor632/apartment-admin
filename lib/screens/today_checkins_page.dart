@@ -638,24 +638,24 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
         final nextArrival =
             _getArrivalTime(entry.nextEvent!.formData) ?? '15:00';
 
-        final today = DateTime(
-          DateTime.now().year,
-          DateTime.now().month,
-          DateTime.now().day,
+        final referenceDate = DateTime(
+          _selectedDate.year,
+          _selectedDate.month,
+          _selectedDate.day,
         );
         final nextStart = DateTime(
           entry.nextEvent!.start.year,
           entry.nextEvent!.start.month,
           entry.nextEvent!.start.day,
         );
-        final diffDays = nextStart.difference(today).inDays;
+        final diffDays = nextStart.difference(referenceDate).inDays;
 
         if (diffDays <= 0) {
-          subtitle = 'Next guest arriving today';
+          subtitle = 'Guest arriving today';
         } else if (diffDays == 1) {
-          subtitle = 'Next guest arriving tomorrow';
+          subtitle = 'Guest arriving tomorrow';
         } else {
-          subtitle = 'Next guest arriving in $diffDays days';
+          subtitle = 'Guest arriving in $diffDays days';
         }
 
         timeInfo = nextArrival;
@@ -803,17 +803,17 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
       final arrivalTime = _getArrivalTime(event.formData) ?? '15:00';
       String displayTime;
       if (isHosting) {
-        final today = DateTime(
-          DateTime.now().year,
-          DateTime.now().month,
-          DateTime.now().day,
+        final referenceDate = DateTime(
+          _selectedDate.year,
+          _selectedDate.month,
+          _selectedDate.day,
         );
         final endDate = DateTime(
           event.end.year,
           event.end.month,
           event.end.day,
         );
-        final daysLeft = endDate.difference(today).inDays;
+        final daysLeft = endDate.difference(referenceDate).inDays;
         if (daysLeft <= 0) {
           displayTime = 'Today';
         } else if (daysLeft == 1) {
