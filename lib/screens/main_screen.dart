@@ -72,6 +72,9 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       _selectedIndex = index;
     });
+    if (index == 0) {
+      TodayCheckinsPage.refreshStream.add(null);
+    }
   }
 
   @override

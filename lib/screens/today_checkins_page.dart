@@ -8,6 +8,8 @@ import 'package:wild_atlantic_hub/models/cleaning_details.dart';
 import 'package:wild_atlantic_hub/utils/form_label_mapper.dart';
 
 class TodayCheckinsPage extends StatefulWidget {
+  static final StreamController<void> refreshStream = StreamController<void>.broadcast();
+
   const TodayCheckinsPage({super.key});
 
   @override
@@ -34,6 +36,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
   DateTime? _lastFetchedDate;
   Map<String, String> _cleaningStatusesByRoomName = {};
   Timer? _refreshTimer;
+  StreamSubscription? _refreshSub;
   final GlobalKey<_AdminNotepadState> _notepadKey = GlobalKey<_AdminNotepadState>();
 
   DateTime _selectedDate = DateTime(
@@ -103,12 +106,17 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     WidgetsBinding.instance.addObserver(this);
     _fetchData();
     _startRefreshTimer();
+    _refreshSub = TodayCheckinsPage.refreshStream.stream.listen((_) {
+      _fetchData(silent: true);
+      _notepadKey.currentState?.fetchNotes();
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
+    _refreshSub?.cancel();
     super.dispose();
   }
 
@@ -166,11 +174,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
 
       final Map<String, String> statusMap = {};
       for (final d in details) {
-        final normName = d.name.toLowerCase().replaceAll(
-          RegExp(r'[^a-z0-9]'),
-          '',
-        );
-        statusMap[normName] = statuses[d.id]?.toString() ?? 'not_cleaned';
+        statusMap[d.name] = statuses[d.id]?.toString() ?? 'not_cleaned';
       }
 
       if (mounted) {
@@ -193,6 +197,35 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
         });
       }
     }
+  }
+
+  String _getCleaningStatus(String bookingRoom) {
+    if (_cleaningStatusesByRoomName.isEmpty) return 'not_cleaned';
+
+    final bk = bookingRoom.toLowerCase().trim();
+    for (final entry in _cleaningStatusesByRoomName.entries) {
+      if (bk == entry.key.toLowerCase().trim()) return entry.value;
+    }
+
+    final bkNorm = bk.replaceAll(RegExp(r'[^a-z0-9 ]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (bkNorm.isEmpty) return 'not_cleaned';
+
+    for (final entry in _cleaningStatusesByRoomName.entries) {
+      final clNorm = entry.key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9 ]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (clNorm.isEmpty) continue;
+
+      final regexBK = RegExp(r'\b' + RegExp.escape(bkNorm) + r'\b');
+      if (regexBK.hasMatch(clNorm)) {
+        return entry.value;
+      }
+      
+      final regexCL = RegExp(r'\b' + RegExp.escape(clNorm) + r'\b');
+      if (regexCL.hasMatch(bkNorm)) {
+        return entry.value;
+      }
+    }
+    
+    return 'not_cleaned';
   }
 
   List<_BookingEntry> get _checkinsToday {
@@ -247,12 +280,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
       }
 
       for (final roomName in byRoom.keys) {
-        final normRoomName = roomName.toLowerCase().replaceAll(
-          RegExp(r'[^a-z0-9]'),
-          '',
-        );
-        final status = _cleaningStatusesByRoomName[normRoomName] ?? 'not_cleaned';
-        final isCleaned = status == 'cleaned';
+        final status = _getCleaningStatus(roomName);
+        final isCleaned = status.toLowerCase() == 'cleaned';
 
         final roomEvents = byRoom[roomName]!;
         final sortedEvents = List.of(roomEvents)..sort((a, b) => a.end.compareTo(b.end));
@@ -313,13 +342,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
       }
 
       for (final roomName in byRoom.keys) {
-        final normRoomName = roomName.toLowerCase().replaceAll(
-          RegExp(r'[^a-z0-9]'),
-          '',
-        );
-        final status =
-            _cleaningStatusesByRoomName[normRoomName] ?? 'not_cleaned';
-        if (status != 'cleaned') continue;
+        final status = _getCleaningStatus(roomName);
+        if (status.toLowerCase() != 'cleaned') continue;
 
         final roomEvents = byRoom[roomName]!;
         for (final event in roomEvents) {
