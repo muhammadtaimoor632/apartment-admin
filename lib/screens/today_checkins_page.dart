@@ -728,12 +728,13 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
         );
         final diffDays = nextStart.difference(referenceDate).inDays;
 
+        final isTodayFilter = _getDateHeader() == 'Today';
         if (diffDays <= 0) {
-          subtitle = 'Guest arriving today';
-        } else if (diffDays == 1) {
-          subtitle = 'Guest arriving tomorrow';
+          subtitle = 'Check-in';
+        } else if (diffDays == 1 && isTodayFilter) {
+          subtitle = 'Check-in tomorrow';
         } else {
-          subtitle = 'Guest arriving in $diffDays days';
+          subtitle = 'Check-in in $diffDays day${diffDays == 1 ? '' : 's'}';
         }
 
         timeInfo = nextArrival;
