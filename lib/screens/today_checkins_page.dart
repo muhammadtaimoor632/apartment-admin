@@ -199,10 +199,28 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     }
   }
 
+  String _checkStatusOrDft(String key) {
+    for (final entry in _cleaningStatusesByRoomName.entries) {
+      if (entry.key.toLowerCase().trim() == key.toLowerCase().trim()) {
+        return entry.value;
+      }
+    }
+    return 'not_cleaned';
+  }
+
   String _getCleaningStatus(String bookingRoom) {
     if (_cleaningStatusesByRoomName.isEmpty) return 'not_cleaned';
 
     final bk = bookingRoom.toLowerCase().trim();
+    
+    // Explicit mappings requested by user
+    if (bk == 'room 1') return _checkStatusOrDft('Room 1 Eyre Square');
+    if (bk == 'room 2') return _checkStatusOrDft('Room 2 Eyre Square');
+    if (bk == 'room 3') return _checkStatusOrDft('Room 3 Eyre Square');
+    if (bk == 'room 4') return _checkStatusOrDft('Room 4 Eyre Square');
+    if (bk == 'room 5') return _checkStatusOrDft('Room 5 Eyre Square');
+    if (bk == '18 kirwans court') return _checkStatusOrDft('Kirwans lane');
+
     for (final entry in _cleaningStatusesByRoomName.entries) {
       if (bk == entry.key.toLowerCase().trim()) return entry.value;
     }
@@ -284,45 +302,56 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
         final isCleaned = status.toLowerCase() == 'cleaned';
 
         final roomEvents = byRoom[roomName]!;
-        final sortedEvents = List.of(roomEvents)..sort((a, b) => a.end.compareTo(b.end));
+        final sortedEvents = List.of(roomEvents)..sort((a, b) => a.start.compareTo(b.start));
+
+        bool isStrictlyOccupied = false;
+        for (final e in sortedEvents) {
+          final start = DateTime(e.start.year, e.start.month, e.start.day);
+          final end = DateTime(e.end.year, e.end.month, e.end.day);
+          if (targetDate.isAfter(start) && targetDate.isBefore(end)) {
+            isStrictlyOccupied = true;
+            break;
+          }
+        }
+
+        if (isStrictlyOccupied) continue; 
 
         BookingEvent? lastCheckoutEvent;
         for (final e in sortedEvents) {
           final end = DateTime(e.end.year, e.end.month, e.end.day);
           if (end.isBefore(targetDate) || end.isAtSameMomentAs(targetDate)) {
-            lastCheckoutEvent = e;
+            if (lastCheckoutEvent == null || end.isAfter(DateTime(lastCheckoutEvent.end.year, lastCheckoutEvent.end.month, lastCheckoutEvent.end.day))) {
+               lastCheckoutEvent = e;
+            }
           }
         }
 
         if (lastCheckoutEvent != null) {
-          final end = DateTime(lastCheckoutEvent.end.year, lastCheckoutEvent.end.month, lastCheckoutEvent.end.day);
-          
-          bool shouldInclude = false;
-          
-          if (end.isAtSameMomentAs(targetDate)) {
-            shouldInclude = true;
-          } else if (end.isBefore(targetDate)) {
-            if (!isCleaned) {
-              shouldInclude = true; // overdue cleanings roll over
-            }
-          }
-          
-          if (shouldInclude) {
-            final upcoming = sortedEvents.where((e) {
-              final startDate = DateTime(e.start.year, e.start.month, e.start.day);
-              return startDate.isAfter(end) || (startDate.isAtSameMomentAs(end) && e != lastCheckoutEvent);
-            }).toList()..sort((a, b) => a.start.compareTo(b.start));
+          final upcoming = sortedEvents.where((e) {
+            final startDate = DateTime(e.start.year, e.start.month, e.start.day);
+            return startDate.isAfter(targetDate) || (startDate.isAtSameMomentAs(targetDate) && e != lastCheckoutEvent);
+          }).toList();
 
-            final nextEvent = upcoming.isNotEmpty ? upcoming.first : null;
-            entries.add(
-              _BookingEntry(
-                calendarName: cal.name,
-                event: lastCheckoutEvent,
-                nextEvent: nextEvent,
-                isCompleted: isCleaned,
-              ),
-            );
+          final nextEvent = upcoming.isNotEmpty ? upcoming.first : null;
+          
+          bool effectiveIsCleaned = isCleaned;
+          final todayReal = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+          final checkoutDate = DateTime(lastCheckoutEvent!.end.year, lastCheckoutEvent!.end.month, lastCheckoutEvent!.end.day);
+          
+          // If the checkout event happens in the future, it intrinsically cannot 
+          // have been cleaned yet. (The LIVE 'cleaned' status belongs to an older stay).
+          if (checkoutDate.isAfter(todayReal)) {
+             effectiveIsCleaned = false;
           }
+          
+          entries.add(
+            _BookingEntry(
+              calendarName: cal.name,
+              event: lastCheckoutEvent,
+              nextEvent: nextEvent,
+              isCompleted: effectiveIsCleaned,
+            ),
+          );
         }
       }
     }
@@ -330,48 +359,15 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
   }
 
   List<_BookingEntry> get _readyForCheckin {
-    final targetDate = _selectedDate;
-    final entries = <_BookingEntry>[];
-
-    for (final cal in _calendars) {
-      final Map<String, List<BookingEvent>> byRoom = {};
-      for (final e in cal.events) {
-        if (!e.isBlocked) {
-          byRoom.putIfAbsent(e.room, () => []).add(e);
+    return _roomsToClean.where((entry) {
+        if (!entry.isCompleted) return false;
+        
+        if (entry.nextEvent != null) {
+            final ns = DateTime(entry.nextEvent!.start.year, entry.nextEvent!.start.month, entry.nextEvent!.start.day);
+            return ns.isAtSameMomentAs(_selectedDate);
         }
-      }
-
-      for (final roomName in byRoom.keys) {
-        final status = _getCleaningStatus(roomName);
-        if (status.toLowerCase() != 'cleaned') continue;
-
-        final roomEvents = byRoom[roomName]!;
-        for (final event in roomEvents) {
-          final end = DateTime(event.end.year, event.end.month, event.end.day);
-          if (end.isAtSameMomentAs(targetDate)) {
-            final upcoming = roomEvents.where((e) {
-              final startDate = DateTime(
-                e.start.year,
-                e.start.month,
-                e.start.day,
-              );
-              return startDate.isAfter(targetDate) ||
-                  (startDate.isAtSameMomentAs(targetDate) && e != event);
-            }).toList()..sort((a, b) => a.start.compareTo(b.start));
-
-            final nextEvent = upcoming.isNotEmpty ? upcoming.first : null;
-            entries.add(
-              _BookingEntry(
-                calendarName: cal.name,
-                event: event,
-                nextEvent: nextEvent,
-              ),
-            );
-          }
-        }
-      }
-    }
-    return entries;
+        return false;
+    }).toList();
   }
 
   String _formatTo24Hour(String timeString) {
