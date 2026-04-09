@@ -645,7 +645,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
                 ),
               ],
             ),
-            children: history.take(3).map((entry) => Padding(
+            children: history.reversed.take(3).map((entry) => Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: Container(
                 padding: const EdgeInsets.all(10),

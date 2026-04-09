@@ -41,11 +41,27 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
   StreamSubscription? _refreshSub;
   final GlobalKey<_AdminNotepadState> _notepadKey = GlobalKey<_AdminNotepadState>();
 
+  DateTime _lastKnownRealDate = DateTime.now();
+
   DateTime _selectedDate = DateTime(
     DateTime.now().year,
     DateTime.now().month,
     DateTime.now().day,
   );
+
+  void _checkDateChange() {
+    final now = DateTime.now();
+    if (now.day != _lastKnownRealDate.day ||
+        now.month != _lastKnownRealDate.month ||
+        now.year != _lastKnownRealDate.year) {
+      _lastKnownRealDate = now;
+      if (mounted) {
+        setState(() {
+          _selectedDate = DateTime(now.year, now.month, now.day);
+        });
+      }
+    }
+  }
 
   String _getDateHeader() {
     final now = DateTime.now();
@@ -135,6 +151,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _checkDateChange();
       if (mounted) {
         setState(() {
           if (ApiService.lastKnownStatuses.isNotEmpty) {
@@ -149,6 +166,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
 
   void _startRefreshTimer() {
     _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      _checkDateChange();
       _fetchData(silent: true);
       _notepadKey.currentState?.fetchNotes();
     });
@@ -909,11 +927,11 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
         );
         final daysLeft = endDate.difference(referenceDate).inDays;
         if (daysLeft <= 0) {
-          displayTime = 'Today';
+          displayTime = 'Checkout today';
         } else if (daysLeft == 1) {
-          displayTime = 'Tomorrow';
+          displayTime = '1 night';
         } else {
-          displayTime = '$daysLeft days';
+          displayTime = '$daysLeft nights';
         }
       } else {
         displayTime = arrivalTime;
