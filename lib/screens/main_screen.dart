@@ -105,11 +105,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     });
     // Ensure absolutely all pages fetch fresh data anytime a tab is switched
     _refreshAllPages();
-    
-    // If returning to the Today tab, snap its date filter back to today
-    if (index == 0) {
-      TodayCheckinsPage.resetToTodayStream.add(null);
-    }
   }
 
   @override
