@@ -9,6 +9,7 @@ import 'package:wild_atlantic_hub/utils/form_label_mapper.dart';
 
 class TodayCheckinsPage extends StatefulWidget {
   static final StreamController<void> refreshStream = StreamController<void>.broadcast();
+  static final StreamController<void> resetToTodayStream = StreamController<void>.broadcast();
 
   const TodayCheckinsPage({super.key});
 
@@ -39,6 +40,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   Map<String, String> _cleaningStatusesByRoomName = {};
   Timer? _refreshTimer;
   StreamSubscription? _refreshSub;
+  StreamSubscription? _resetSub;
   final GlobalKey<_AdminNotepadState> _notepadKey = GlobalKey<_AdminNotepadState>();
 
   DateTime _lastKnownRealDate = DateTime.now();
@@ -137,11 +139,23 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
       _fetchData(silent: true);
       _notepadKey.currentState?.fetchNotes();
     });
+    _resetSub = TodayCheckinsPage.resetToTodayStream.stream.listen((_) {
+      if (mounted) {
+        setState(() {
+          _selectedDate = DateTime(
+            DateTime.now().year,
+            DateTime.now().month,
+            DateTime.now().day,
+          );
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _refreshSub?.cancel();
+    _resetSub?.cancel();
     super.dispose();
   }
 
