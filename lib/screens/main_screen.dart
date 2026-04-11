@@ -103,8 +103,15 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     setState(() {
       _selectedIndex = index;
     });
-    // Ensure absolutely all pages fetch fresh data anytime a tab is switched
-    _refreshAllPages();
+    if (index == 0) {
+      TodayCheckinsPage.refreshStream.add(null);
+    } else if (index == 1) {
+      CleaningStatusPage.refreshStream.add(null);
+    } else if (index == 2) {
+      BookingCalendarPage.refreshStream.add(null);
+    } else if (index == 3) {
+      ProductInventoryPage.refreshStream.add(null);
+    }
   }
 
   @override
