@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:wild_atlantic_hub/models/cleaning_details.dart';
 
@@ -6,7 +5,6 @@ import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:wild_atlantic_hub/screens/apartment_inventory_list_page.dart';
 
 class ProductInventoryPage extends StatefulWidget {
-  static final StreamController<void> refreshStream = StreamController<void>.broadcast();
   const ProductInventoryPage({super.key});
 
   @override
@@ -21,27 +19,11 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
   static const Color _primary = Color(0xFF8CB2A4);
   static const Color _primaryDark = Color(0xFF5D8A7A);
 
-  StreamSubscription? _refreshSub;
-
   @override
   void initState() {
     super.initState();
     _dataFuture = _fetchData();
     _fetchNote();
-    _refreshSub = ProductInventoryPage.refreshStream.stream.listen((_) {
-      if (mounted) {
-        _fetchNote();
-        setState(() {
-          _dataFuture = _fetchData();
-        });
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _refreshSub?.cancel();
-    super.dispose();
   }
 
   Future<void> _fetchNote() async {
@@ -136,7 +118,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
   Widget _buildBody(
     AsyncSnapshot<(List<CleaningDetails>, Map<String, int>, Map<String, bool>)> snapshot,
   ) {
-    if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
       return const Center(child: CircularProgressIndicator(color: _primary));
     }
     if (snapshot.hasError) {
