@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:wild_atlantic_hub/models/booking_event.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
@@ -5,6 +6,7 @@ import 'package:wild_atlantic_hub/utils/form_label_mapper.dart';
 import 'package:intl/intl.dart';
 
 class BookingCalendarPage extends StatefulWidget {
+  static final StreamController<void> refreshStream = StreamController<void>.broadcast();
   const BookingCalendarPage({super.key});
 
   @override
@@ -21,34 +23,48 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
 
   // Filter state
   String _selectedFilter = 'all'; // all, active, upcoming, blocked
+  StreamSubscription? _refreshSub;
 
   @override
   void initState() {
     super.initState();
     _currentMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
     _fetchCalendars();
+    _refreshSub = BookingCalendarPage.refreshStream.stream.listen((_) {
+      _fetchCalendars(silent: true);
+    });
   }
 
-  Future<void> _fetchCalendars() async {
+  @override
+  void dispose() {
+    _refreshSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchCalendars({bool silent = false}) async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    if (!silent || _calendars.isEmpty) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       final calendars = await ApiService.fetchBookingCalendars();
       if (mounted) {
         setState(() {
           _calendars = calendars;
-          _isLoading = false;
+          if (!silent || _isLoading) _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Failed to load bookings. Pull to refresh.';
-          _isLoading = false;
+          if (!silent || _calendars.isEmpty) {
+            _errorMessage = 'Failed to load bookings. Pull to refresh.';
+            _isLoading = false;
+          }
         });
       }
     }

@@ -31,7 +31,7 @@ class _BookingEntry {
   });
 }
 
-class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindingObserver {
+class _TodayCheckinsPageState extends State<TodayCheckinsPage> {
   List<BookingCalendar> _calendars = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -121,13 +121,12 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     if (ApiService.lastKnownStatuses.isNotEmpty) {
       _cleaningStatusesByRoomName = Map.from(ApiService.lastKnownStatuses);
     }
     _fetchData();
-    _startRefreshTimer();
     _refreshSub = TodayCheckinsPage.refreshStream.stream.listen((_) {
+      _checkDateChange();
       if (mounted) {
         setState(() {
           if (ApiService.lastKnownStatuses.isNotEmpty) {
@@ -142,34 +141,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _refreshTimer?.cancel();
     _refreshSub?.cancel();
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _checkDateChange();
-      if (mounted) {
-        setState(() {
-          if (ApiService.lastKnownStatuses.isNotEmpty) {
-            _cleaningStatusesByRoomName = Map.from(ApiService.lastKnownStatuses);
-          }
-        });
-      }
-      _fetchData(silent: false);
-      _notepadKey.currentState?.fetchNotes();
-    }
-  }
-
-  void _startRefreshTimer() {
-    _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      _checkDateChange();
-      _fetchData(silent: true);
-      _notepadKey.currentState?.fetchNotes();
-    });
   }
 
   @override

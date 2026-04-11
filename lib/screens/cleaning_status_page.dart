@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:wild_atlantic_hub/screens/status_details_page.dart';
 import 'package:wild_atlantic_hub/models/cleaning_details.dart';
 
 class CleaningStatusPage extends StatefulWidget {
+  static final StreamController<void> refreshStream = StreamController<void>.broadcast();
   const CleaningStatusPage({super.key});
   @override
   State<CleaningStatusPage> createState() => _CleaningStatusPageState();
@@ -33,23 +35,28 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
   final Map<String, bool> _expandedCards = {};
 
   bool _isFetchingInitialData = true;
+  StreamSubscription? _refreshSub;
 
   @override
   void initState() {
     super.initState();
     _initializeStatuses();
+    _refreshSub = CleaningStatusPage.refreshStream.stream.listen((_) {
+      _initializeStatuses(silent: true);
+    });
   }
 
   @override
   void dispose() {
+    _refreshSub?.cancel();
     for (var controller in _remarksControllers.values) {
       controller.dispose();
     }
     super.dispose();
   }
 
-  Future<void> _initializeStatuses() async {
-    if (mounted) {
+  Future<void> _initializeStatuses({bool silent = false}) async {
+    if (mounted && (!silent || _apartments.isEmpty)) {
       setState(() {
         _isFetchingInitialData = true;
       });
