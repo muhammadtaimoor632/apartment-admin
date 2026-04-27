@@ -22,12 +22,14 @@ class _BookingEntry {
   final BookingEvent? nextEvent;
   final bool isCompleted;
   final bool isOverdue;
+  final String cleaningStatus;
   _BookingEntry({
     required this.calendarName,
     required this.event,
     this.nextEvent,
     this.isCompleted = false,
     this.isOverdue = false,
+    this.cleaningStatus = 'not_cleaned',
   });
 }
 
@@ -398,6 +400,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
               nextEvent: nextEvent,
               isCompleted: effectiveIsCleaned,
               isOverdue: isOverdue,
+              cleaningStatus: status,
             ),
           );
         }
@@ -795,6 +798,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
           onTap: () => _showEventDetail(entry, isCheckout: true),
           borderRadius: BorderRadius.circular(16),
           child: Stack(
+            clipBehavior: Clip.none,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -904,15 +908,11 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
               ],
             ),
           ),
-          if (entry.isCompleted)
-            const Positioned(
-              top: 8,
-              right: 8,
-              child: Icon(
-                Icons.check_circle,
-                color: Colors.green,
-                size: 16,
-              ),
+          if (isCheckout)
+            Positioned(
+              top: -8,
+              right: -6,
+              child: _buildStatusBadge(entry.cleaningStatus),
             ),
         ],
       ),
@@ -1063,6 +1063,35 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
         ),
       );
     }
+  }
+  Widget _buildStatusBadge(String status) {
+    Color bgColor;
+    Color textColor;
+    String displayStatus;
+
+    final lowerStatus = status.toLowerCase();
+    if (lowerStatus == 'cleaned') {
+      bgColor = Colors.green.withOpacity(0.1);
+      textColor = Colors.green[700]!;
+      displayStatus = 'Cleaned';
+    } else if (lowerStatus == 'in_progress') {
+      bgColor = Colors.blue.withOpacity(0.1);
+      textColor = Colors.blue[700]!;
+      displayStatus = 'In Progress';
+    } else {
+      bgColor = Colors.orange.withOpacity(0.1);
+      textColor = Colors.orange[800]!;
+      displayStatus = 'Not Cleaned';
+    }
+
+    return Text(
+      displayStatus,
+      style: TextStyle(
+        color: textColor,
+        fontSize: 9,
+        fontWeight: FontWeight.w700,
+      ),
+    );
   }
 
   void _showEventDetail(_BookingEntry entry, {required bool isCheckout}) {
