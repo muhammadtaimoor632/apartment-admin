@@ -271,10 +271,10 @@ function aa_get_status_details()
         aa_ensure_today_row($apt_id);
 
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE apartment_id = %s AND date_created = %s", $apt_id, $today), ARRAY_A);
-        $history_rows = $wpdb->get_results($wpdb->prepare("SELECT rating, remarks, date_label FROM $history_table WHERE apartment_id = %s AND date_label != %s ORDER BY rated_at DESC LIMIT 5", $apt_id, $today), ARRAY_A);
+        $history_rows = $wpdb->get_results($wpdb->prepare("SELECT todays_rating as rating, remarks, date_created as date_label, cleaning_image_url as image_url FROM $table WHERE apartment_id = %s AND date_created != %s AND todays_rating > 0 ORDER BY date_created DESC LIMIT 3", $apt_id, $today), ARRAY_A);
 
         $rating_history = array_map(function ($h) {
-            return ['rating' => (int) $h['rating'], 'date' => $h['date_label'], 'remarks' => $h['remarks'] ?? ''];
+            return ['rating' => (int) $h['rating'], 'date' => $h['date_label'], 'remarks' => $h['remarks'] ?? '', 'image_url' => $h['image_url'] ?? ''];
         }, $history_rows);
 
         $start_time = $row['start_time'] ? date('g:i a', strtotime($row['start_time'])) : 'N/A';
