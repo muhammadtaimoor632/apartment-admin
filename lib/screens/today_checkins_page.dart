@@ -124,19 +124,18 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    if (ApiService.lastKnownStatuses.isNotEmpty) {
-      _cleaningStatusesByRoomName = Map.from(ApiService.lastKnownStatuses);
-    }
-    _fetchData();
+    // Initial load: silent if we somehow already have data, otherwise show
+    // loading. The cached _cleaningStatusesByRoomName from a prior session is
+    // empty here, so the first load shows a spinner; subsequent tab returns
+    // keep the previously fetched data visible while we refresh in background.
+    _fetchData(silent: _calendars.isNotEmpty);
     _startRefreshTimer();
     _refreshSub = TodayCheckinsPage.refreshStream.stream.listen((_) {
-      if (mounted) {
-        setState(() {
-          if (ApiService.lastKnownStatuses.isNotEmpty) {
-            _cleaningStatusesByRoomName = Map.from(ApiService.lastKnownStatuses);
-          }
-        });
-      }
+      // Refresh silently — keep the current view visible and only update once
+      // the new data arrives. Do NOT clobber _cleaningStatusesByRoomName with
+      // ApiService.lastKnownStatuses: that map is keyed by apartment id, not
+      // room name, so assigning it would invalidate every lookup and make
+      // rooms momentarily appear as "not cleaned"/"overdue".
       _fetchData(silent: true);
       _notepadKey.currentState?.fetchNotes();
     });
@@ -154,14 +153,12 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _checkDateChange();
-      if (mounted) {
-        setState(() {
-          if (ApiService.lastKnownStatuses.isNotEmpty) {
-            _cleaningStatusesByRoomName = Map.from(ApiService.lastKnownStatuses);
-          }
-        });
-      }
-      _fetchData(silent: false);
+      // Refresh in the background and keep the previously loaded data on
+      // screen until the new response arrives. Do NOT reassign
+      // _cleaningStatusesByRoomName from ApiService.lastKnownStatuses — that
+      // map is keyed by apartment id rather than room name, so applying it
+      // would break lookups and briefly mark every room as overdue.
+      _fetchData(silent: _calendars.isNotEmpty);
       _notepadKey.currentState?.fetchNotes();
     }
   }
@@ -379,12 +376,15 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
 
           if (lastCheckoutEvent != null) {
             final checkoutDate = DateTime(lastCheckoutEvent.end.year, lastCheckoutEvent.end.month, lastCheckoutEvent.end.day);
-            
+
             if (checkoutDate.isAfter(todayReal)) {
                effectiveIsCleaned = false;
             }
-            
-            isOverdue = !effectiveIsCleaned && checkoutDate.isBefore(targetDate);
+
+            // Overdue only when the checkout is on the target date itself
+            // and cleaners have not marked it cleaned. Past checkouts are not
+            // considered overdue — they simply show as "not cleaned".
+            isOverdue = !effectiveIsCleaned && checkoutDate.isAtSameMomentAs(targetDate);
           } else if (nextEvent != null) {
             // We have a check-in coming, but the previous check-out is purged from calendar.
             // We default to not overdue, but displaying it normally.
@@ -400,7 +400,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
               nextEvent: nextEvent,
               isCompleted: effectiveIsCleaned,
               isOverdue: isOverdue,
-              cleaningStatus: status,
+              cleaningStatus: effectiveIsCleaned ? (status.toLowerCase() == 'cleaned' ? status : 'cleaned') : (status.toLowerCase() == 'cleaned' ? 'not_cleaned' : status),
             ),
           );
         }

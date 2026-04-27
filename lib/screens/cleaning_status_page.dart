@@ -604,8 +604,43 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
     );
   }
 
+  DateTime? _tryParseHistoryDate(String raw) {
+    if (raw.isEmpty) return null;
+    final direct = DateTime.tryParse(raw);
+    if (direct != null) return direct;
+    // Try common display formats like "dd/MM/yyyy" or "dd-MM-yyyy" with optional time
+    final m = RegExp(r'^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[\sT]+(\d{1,2}):(\d{2}))?').firstMatch(raw);
+    if (m != null) {
+      int day = int.parse(m.group(1)!);
+      int month = int.parse(m.group(2)!);
+      int year = int.parse(m.group(3)!);
+      if (year < 100) year += 2000;
+      int hour = m.group(4) != null ? int.parse(m.group(4)!) : 0;
+      int minute = m.group(5) != null ? int.parse(m.group(5)!) : 0;
+      try {
+        return DateTime(year, month, day, hour, minute);
+      } catch (_) {}
+    }
+    return null;
+  }
+
   Widget _buildRatingHistorySection(String apartmentId) {
-    final history = _ratingHistories[apartmentId] ?? [];
+    final rawHistory = _ratingHistories[apartmentId] ?? [];
+
+    // Sort by parsed date descending so the most recent ratings show first,
+    // regardless of backend order or whether remarks are present. Entries
+    // with unparseable dates retain their original relative order at the end.
+    final indexed = List.generate(rawHistory.length, (i) => MapEntry(i, rawHistory[i])).toList();
+    indexed.sort((a, b) {
+      final da = _tryParseHistoryDate(a.value.date);
+      final db = _tryParseHistoryDate(b.value.date);
+      if (da != null && db != null) return db.compareTo(da);
+      if (da != null) return -1;
+      if (db != null) return 1;
+      // Backend already returns newest-first; preserve that order on ties.
+      return a.key.compareTo(b.key);
+    });
+    final history = indexed.map((e) => e.value).toList();
 
     if (history.isEmpty) {
       return Padding(
@@ -645,7 +680,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
                 ),
               ],
             ),
-            children: history.reversed.take(3).map((entry) => Padding(
+            children: history.take(3).map((entry) => Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: Container(
                 padding: const EdgeInsets.all(10),
