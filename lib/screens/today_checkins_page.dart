@@ -954,7 +954,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
       if (entry.isOverdue && entry.nextEvent != null) {
         displaySubtitle = 'OVERDUE · $subtitle';
       } else if (entry.isCheckoutToday && entry.nextEvent != null) {
-        displaySubtitle = 'Checkout today · $subtitle';
+        displaySubtitle = 'Checkout today';
       } else {
         displaySubtitle = subtitle;
       }
@@ -1179,7 +1179,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                               Text(
                                 'Staying for $checkinNights night${checkinNights == 1 ? '' : 's'}',
                                 style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 11,
                                   color: Colors.grey[600],
                                   fontWeight: FontWeight.w500,
                                 ),
