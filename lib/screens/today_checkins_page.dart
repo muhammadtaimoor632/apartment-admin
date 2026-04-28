@@ -189,10 +189,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
   Future<void> _fetchData({bool silent = false}) async {
     if (!mounted) return;
     
-    // Only show loading if it's not a silent refresh, or if we have no data yet
-    if (!silent || _calendars.isEmpty) {
+    // Ensure error message is clear when we start fetching
+    if (!silent) {
       setState(() {
-        _isLoading = true;
         _errorMessage = null;
       });
     }
@@ -563,9 +562,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
           IconButton(icon: const Icon(Icons.refresh), onPressed: _fetchData),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
+      body: _errorMessage != null
           ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -584,40 +581,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     final hosting = _currentlyHosting;
     final cleaning = _roomsToClean;
 
-    if (checkins.isEmpty &&
-        hosting.isEmpty &&
-        cleaning.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        children: [
-          _buildDateSelector(),
-          SizedBox(
-            height: MediaQuery.of(context).size.height * 0.7,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.event_available,
-                    size: 60,
-                    color: Colors.grey[300],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'All quiet on ${_getDateHeader() == "Today" ? "today" : _getDateHeader()}!',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey[500],
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      );
-    }
+
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),

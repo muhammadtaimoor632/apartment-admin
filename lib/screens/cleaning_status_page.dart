@@ -1427,9 +1427,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
           ),
         ],
       ),
-      body: _isFetchingInitialData
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
+      body: RefreshIndicator(
               onRefresh: _initializeStatuses,
               color: const Color(0xFF8CB2A4),
               child: ListView.builder(

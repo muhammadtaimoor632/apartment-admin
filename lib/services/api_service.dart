@@ -32,6 +32,30 @@ class ApiService {
     );
   }
 
+  // --- Preload Caching for Splash Screen ---
+  static Future<Map<String, dynamic>>? _preloadStatusesFuture;
+  static Future<List<CleaningDetails>>? _preloadDetailsFuture;
+  static Future<List<BookingCalendar>>? _preloadCalendarsFuture;
+
+  static void preloadInitialData() {
+    _preloadStatusesFuture = fetchCleaningStatuses();
+    _preloadDetailsFuture = fetchCleaningDetails();
+    _preloadCalendarsFuture = fetchBookingCalendars();
+  }
+
+  static Future<void> waitForInitialPreload() async {
+    if (_preloadStatusesFuture == null) return;
+    try {
+      await Future.wait([
+        _preloadStatusesFuture!,
+        _preloadDetailsFuture!,
+        _preloadCalendarsFuture!,
+      ]);
+    } catch (_) {
+      // Ignore errors here; let the actual pages handle/show exceptions
+    }
+  }
+
   // --- Cleaning Status Endpoints ---
 
   static String _clientDateQuery([DateTime? targetDate]) {
@@ -45,6 +69,12 @@ class ApiService {
   static Map<String, String> lastKnownStatuses = {};
 
   static Future<Map<String, dynamic>> fetchCleaningStatuses({DateTime? targetDate}) async {
+    if (targetDate == null && _preloadStatusesFuture != null) {
+      final future = _preloadStatusesFuture!;
+      _preloadStatusesFuture = null;
+      return future;
+    }
+
     final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/all${_clientDateQuery(targetDate)}');
     final response = await http.get(uri);
     if (response.statusCode == 200) {
@@ -57,6 +87,12 @@ class ApiService {
   }
 
   static Future<List<CleaningDetails>> fetchCleaningDetails({DateTime? targetDate}) async {
+    if (targetDate == null && _preloadDetailsFuture != null) {
+      final future = _preloadDetailsFuture!;
+      _preloadDetailsFuture = null;
+      return future;
+    }
+
     final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/details${_clientDateQuery(targetDate)}');
     final response = await http.get(uri, headers: _authHeaders);
     if (response.statusCode == 200) {
@@ -225,6 +261,12 @@ class ApiService {
   // --- Booking Calendar Endpoints ---
 
   static Future<List<BookingCalendar>> fetchBookingCalendars() async {
+    if (_preloadCalendarsFuture != null) {
+      final future = _preloadCalendarsFuture!;
+      _preloadCalendarsFuture = null;
+      return future;
+    }
+
     final uri = Uri.parse('$_wordpressUrl/wp-json/cbc/v1/calendars');
     final response = await http.get(uri, headers: _authHeaders);
     if (response.statusCode == 200) {
