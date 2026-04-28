@@ -273,6 +273,12 @@ function aa_get_status_details()
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE apartment_id = %s AND date_created = %s", $apt_id, $today), ARRAY_A);
         $history_rows = $wpdb->get_results($wpdb->prepare("SELECT todays_rating as rating, remarks, date_created as date_label, cleaning_image_url as image_url FROM $table WHERE apartment_id = %s AND date_created != %s AND todays_rating > 0 ORDER BY date_created DESC LIMIT 3", $apt_id, $today), ARRAY_A);
 
+        // Get the most recent date this apartment was cleaned (status='cleaned' or rated)
+        $last_cleaned_date = $wpdb->get_var($wpdb->prepare(
+            "SELECT MAX(date_created) FROM $table WHERE apartment_id = %s AND (status = 'cleaned' OR todays_rating > 0)",
+            $apt_id
+        ));
+
         $rating_history = array_map(function ($h) {
             return ['rating' => (int) $h['rating'], 'date' => $h['date_label'], 'remarks' => $h['remarks'] ?? '', 'image_url' => $h['image_url'] ?? ''];
         }, $history_rows);
@@ -294,6 +300,7 @@ function aa_get_status_details()
             'lastRatedAt' => $last_rated_at,
             'remarks' => $row['remarks'] ?? '',
             'cleaningImageUrl' => $row['cleaning_image_url'] ?? '',
+            'lastCleanedDate' => $last_cleaned_date,
             'ratingHistory' => $rating_history,
         ];
     }

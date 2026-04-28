@@ -33,6 +33,7 @@ class CleaningDetails {
   final String lastRatedAt;
   final String remarks;
   final String cleaningImageUrl;
+  final String? lastCleanedDate;
   final List<RatingHistoryEntry> ratingHistory;
 
   CleaningDetails({
@@ -47,6 +48,7 @@ class CleaningDetails {
     required this.lastRatedAt,
     required this.remarks,
     required this.cleaningImageUrl,
+    this.lastCleanedDate,
     required this.ratingHistory,
   });
 
@@ -71,6 +73,7 @@ class CleaningDetails {
       lastRatedAt: json['lastRatedAt'] ?? 'Unknown',
       remarks: json['remarks'] ?? '',
       cleaningImageUrl: json['cleaningImageUrl'] ?? '',
+      lastCleanedDate: json['lastCleanedDate'],
       ratingHistory: history,
     );
   }

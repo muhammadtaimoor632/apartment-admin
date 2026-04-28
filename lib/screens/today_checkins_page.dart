@@ -22,6 +22,7 @@ class _BookingEntry {
   final BookingEvent? nextEvent;
   final bool isCompleted;
   final bool isOverdue;
+  final bool isCheckoutToday;
   final String cleaningStatus;
   _BookingEntry({
     required this.calendarName,
@@ -29,6 +30,7 @@ class _BookingEntry {
     this.nextEvent,
     this.isCompleted = false,
     this.isOverdue = false,
+    this.isCheckoutToday = false,
     this.cleaningStatus = 'not_cleaned',
   });
 }
@@ -39,6 +41,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
   String? _errorMessage;
   DateTime? _lastFetchedDate;
   Map<String, String> _cleaningStatusesByRoomName = {};
+  Map<String, String?> _lastCleanedDatesByRoomName = {};
   Timer? _refreshTimer;
   StreamSubscription? _refreshSub;
   final GlobalKey<_AdminNotepadState> _notepadKey = GlobalKey<_AdminNotepadState>();
@@ -209,14 +212,44 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
       final statuses = results[2] as Map<String, dynamic>;
 
       final Map<String, String> statusMap = {};
+      final Map<String, String?> lastCleanedMap = {};
       for (final d in details) {
-        statusMap[d.name] = statuses[d.id]?.toString() ?? 'not_cleaned';
+        final currentStatus = statuses[d.id]?.toString() ?? 'not_cleaned';
+        statusMap[d.name] = currentStatus;
+
+        // Determine last cleaned date with fallbacks
+        String? lastCleaned = d.lastCleanedDate;
+
+        // Fallback: derive from rating history if API doesn't return lastCleanedDate
+        if ((lastCleaned == null || lastCleaned.isEmpty) && d.ratingHistory.isNotEmpty) {
+          String? maxDate;
+          for (final h in d.ratingHistory) {
+            if (h.date.isNotEmpty) {
+              if (maxDate == null || h.date.compareTo(maxDate) > 0) {
+                maxDate = h.date;
+              }
+            }
+          }
+          lastCleaned = maxDate;
+        }
+
+        // If today's status is 'cleaned', last cleaned is at least today
+        if (currentStatus == 'cleaned') {
+          final now = DateTime.now();
+          final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+          if (lastCleaned == null || todayStr.compareTo(lastCleaned) > 0) {
+            lastCleaned = todayStr;
+          }
+        }
+
+        lastCleanedMap[d.name] = lastCleaned;
       }
 
       if (mounted) {
         setState(() {
           _calendars = calendars;
           _cleaningStatusesByRoomName = statusMap;
+          _lastCleanedDatesByRoomName = lastCleanedMap;
           if (!silent || _isLoading) _isLoading = false;
           _errorMessage = null;
           _lastFetchedDate = DateTime.now();
@@ -235,51 +268,53 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     }
   }
 
-  String _checkStatusOrDft(String key) {
-    for (final entry in _cleaningStatusesByRoomName.entries) {
-      if (entry.key.toLowerCase().trim() == key.toLowerCase().trim()) {
-        return entry.value;
-      }
+  /// Find the matching key in _cleaningStatusesByRoomName for a booking room name.
+  /// Handles explicit name mappings and fuzzy matching.
+  String? _findCleaningRoomName(String bookingRoom) {
+    if (_cleaningStatusesByRoomName.isEmpty) return null;
+
+    final bk = bookingRoom.toLowerCase().trim();
+
+    // Explicit mappings: booking names → cleaning system names
+    String? mappedRoom;
+    if (bk == 'room 1') mappedRoom = 'room 1 eyre square';
+    else if (bk == 'room 2') mappedRoom = 'room 2 eyre square';
+    else if (bk == 'room 3') mappedRoom = 'room 3 eyre square';
+    else if (bk == 'room 4') mappedRoom = 'room 4 eyre square';
+    else if (bk == 'room 5') mappedRoom = 'room 5 eyre square';
+    else if (bk == '18 kirwans court') mappedRoom = 'kirwans lane';
+
+    final searchKey = mappedRoom ?? bk;
+
+    // Direct match
+    for (final key in _cleaningStatusesByRoomName.keys) {
+      if (key.toLowerCase().trim() == searchKey) return key;
     }
-    return 'not_cleaned';
+
+    // Fuzzy match
+    final bkNorm = searchKey.replaceAll(RegExp(r'[^a-z0-9 ]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (bkNorm.isEmpty) return null;
+
+    for (final key in _cleaningStatusesByRoomName.keys) {
+      final clNorm = key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9 ]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (clNorm.isEmpty) continue;
+      final regexBK = RegExp(r'\b' + RegExp.escape(bkNorm) + r'\b');
+      if (regexBK.hasMatch(clNorm)) return key;
+      final regexCL = RegExp(r'\b' + RegExp.escape(clNorm) + r'\b');
+      if (regexCL.hasMatch(bkNorm)) return key;
+    }
+
+    return null;
   }
 
   String _getCleaningStatus(String bookingRoom) {
-    if (_cleaningStatusesByRoomName.isEmpty) return 'not_cleaned';
+    final key = _findCleaningRoomName(bookingRoom);
+    return key != null ? (_cleaningStatusesByRoomName[key] ?? 'not_cleaned') : 'not_cleaned';
+  }
 
-    final bk = bookingRoom.toLowerCase().trim();
-    
-    // Explicit mappings requested by user
-    if (bk == 'room 1') return _checkStatusOrDft('Room 1 Eyre Square');
-    if (bk == 'room 2') return _checkStatusOrDft('Room 2 Eyre Square');
-    if (bk == 'room 3') return _checkStatusOrDft('Room 3 Eyre Square');
-    if (bk == 'room 4') return _checkStatusOrDft('Room 4 Eyre Square');
-    if (bk == 'room 5') return _checkStatusOrDft('Room 5 Eyre Square');
-    if (bk == '18 kirwans court') return _checkStatusOrDft('Kirwans lane');
-
-    for (final entry in _cleaningStatusesByRoomName.entries) {
-      if (bk == entry.key.toLowerCase().trim()) return entry.value;
-    }
-
-    final bkNorm = bk.replaceAll(RegExp(r'[^a-z0-9 ]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (bkNorm.isEmpty) return 'not_cleaned';
-
-    for (final entry in _cleaningStatusesByRoomName.entries) {
-      final clNorm = entry.key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9 ]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
-      if (clNorm.isEmpty) continue;
-
-      final regexBK = RegExp(r'\b' + RegExp.escape(bkNorm) + r'\b');
-      if (regexBK.hasMatch(clNorm)) {
-        return entry.value;
-      }
-      
-      final regexCL = RegExp(r'\b' + RegExp.escape(clNorm) + r'\b');
-      if (regexCL.hasMatch(bkNorm)) {
-        return entry.value;
-      }
-    }
-    
-    return 'not_cleaned';
+  String? _getLastCleanedDate(String bookingRoom) {
+    final key = _findCleaningRoomName(bookingRoom);
+    return key != null ? _lastCleanedDatesByRoomName[key] : null;
   }
 
   List<_BookingEntry> get _checkinsToday {
@@ -372,27 +407,51 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
         if (lastCheckoutEvent != null || nextEvent != null) {
           bool effectiveIsCleaned = isCleaned;
           final todayReal = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+          final isViewingToday = targetDate.isAtSameMomentAs(todayReal);
           bool isOverdue = false;
+          bool isCheckoutToday = false;
 
           if (lastCheckoutEvent != null) {
             final checkoutDate = DateTime(lastCheckoutEvent.end.year, lastCheckoutEvent.end.month, lastCheckoutEvent.end.day);
 
             if (checkoutDate.isAfter(todayReal)) {
-               effectiveIsCleaned = false;
+              // Future checkout — not yet due for cleaning
+              effectiveIsCleaned = false;
+            } else if (isViewingToday && checkoutDate.isAtSameMomentAs(todayReal)) {
+              // Checkout is TODAY — show "Checkout today, needs cleaning"
+              isCheckoutToday = !effectiveIsCleaned;
+              isOverdue = false;
+            } else if (isViewingToday && checkoutDate.isBefore(todayReal)) {
+              // Past checkout, viewing today — check if cleaning was done
+              bool wasCleaned = effectiveIsCleaned; // today's status says cleaned
+              if (!wasCleaned) {
+                final lastCleanedStr = _getLastCleanedDate(roomName);
+                if (lastCleanedStr != null && lastCleanedStr.isNotEmpty) {
+                  final lastCleaned = DateTime.tryParse(lastCleanedStr);
+                  if (lastCleaned != null) {
+                    final lastCleanedDay = DateTime(lastCleaned.year, lastCleaned.month, lastCleaned.day);
+                    // Cleaned on or after checkout date → not overdue
+                    wasCleaned = !lastCleanedDay.isBefore(checkoutDate);
+                  }
+                }
+              }
+              effectiveIsCleaned = wasCleaned;
+              isOverdue = !wasCleaned;
             }
-
-            // Overdue only when the checkout is on the target date itself
-            // and cleaners have not marked it cleaned. Past checkouts are not
-            // considered overdue — they simply show as "not cleaned".
-            isOverdue = !effectiveIsCleaned && checkoutDate.isAtSameMomentAs(targetDate);
           } else if (nextEvent != null) {
-            // We have a check-in coming, but the previous check-out is purged from calendar.
-            // We default to not overdue, but displaying it normally.
+            // Check-in coming, but previous check-out is purged from calendar.
+            // Check if room was cleaned previously — if so, it's still clean.
+            if (!effectiveIsCleaned) {
+              final lastCleanedStr = _getLastCleanedDate(roomName);
+              if (lastCleanedStr != null && lastCleanedStr.isNotEmpty) {
+                effectiveIsCleaned = true;
+              }
+            }
             isOverdue = false;
           }
-          
+
           final eventToUse = lastCheckoutEvent ?? nextEvent!;
-          
+
           entries.add(
             _BookingEntry(
               calendarName: cal.name,
@@ -400,6 +459,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
               nextEvent: nextEvent,
               isCompleted: effectiveIsCleaned,
               isOverdue: isOverdue,
+              isCheckoutToday: isCheckoutToday,
               cleaningStatus: effectiveIsCleaned ? (status.toLowerCase() == 'cleaned' ? status : 'cleaned') : (status.toLowerCase() == 'cleaned' ? 'not_cleaned' : status),
             ),
           );
@@ -747,10 +807,27 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
       final String subtitle;
       final String timeInfo;
       
-      final Color baseColor = entry.isOverdue ? Colors.red[600]! : Colors.orange;
-      final Color bgColor = entry.isOverdue ? Colors.red[50]! : Colors.orange[50]!;
-      final Color borderColor = entry.isOverdue ? Colors.red.withOpacity(0.4) : Colors.orange.withOpacity(0.2);
-      final Color textColor = entry.isOverdue ? Colors.red[900]! : Colors.orange[900]!;
+      final Color baseColor;
+      final Color bgColor;
+      final Color borderColor;
+      final Color textColor;
+
+      if (entry.isOverdue) {
+        baseColor = Colors.red[600]!;
+        bgColor = Colors.red[50]!;
+        borderColor = Colors.red.withOpacity(0.4);
+        textColor = Colors.red[900]!;
+      } else if (entry.isCheckoutToday) {
+        baseColor = Colors.amber[700]!;
+        bgColor = Colors.amber[50]!;
+        borderColor = Colors.amber.withOpacity(0.3);
+        textColor = Colors.amber[900]!;
+      } else {
+        baseColor = Colors.orange;
+        bgColor = Colors.orange[50]!;
+        borderColor = Colors.orange.withOpacity(0.2);
+        textColor = Colors.orange[900]!;
+      }
 
       if (entry.nextEvent != null) {
         final nextArrival =
@@ -779,13 +856,24 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
 
         timeInfo = nextArrival;
       } else {
-        subtitle = entry.isOverdue ? 'Overdue Cleaning' : 'No upcoming guest found';
+        if (entry.isOverdue) {
+          subtitle = 'Overdue · Cleaning missed';
+        } else if (entry.isCheckoutToday) {
+          subtitle = 'Checkout today, needs cleaning';
+        } else {
+          subtitle = 'No upcoming guest found';
+        }
         timeInfo = '--';
       }
 
-      final displaySubtitle = entry.isOverdue && entry.nextEvent != null 
-          ? 'OVERDUE · $subtitle' 
-          : subtitle;
+      final String displaySubtitle;
+      if (entry.isOverdue && entry.nextEvent != null) {
+        displaySubtitle = 'OVERDUE · $subtitle';
+      } else if (entry.isCheckoutToday && entry.nextEvent != null) {
+        displaySubtitle = 'Checkout today · $subtitle';
+      } else {
+        displaySubtitle = subtitle;
+      }
 
       final specialReq = _getSpecialRequestString(
         entry.nextEvent?.formData,
@@ -816,7 +904,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                       offset: const Offset(0, 2),
                     ),
                   ],
-                  border: Border.all(color: borderColor, width: entry.isOverdue ? 1.5 : 1.0),
+                  border: Border.all(color: borderColor, width: (entry.isOverdue || entry.isCheckoutToday) ? 1.5 : 1.0),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -840,8 +928,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                                 displaySubtitle,
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: entry.isOverdue ? Colors.red[600] : Colors.grey[600],
-                                  fontWeight: entry.isOverdue ? FontWeight.w600 : FontWeight.w500,
+                                  color: entry.isOverdue ? Colors.red[600] : (entry.isCheckoutToday ? Colors.amber[800] : Colors.grey[600]),
+                                  fontWeight: (entry.isOverdue || entry.isCheckoutToday) ? FontWeight.w600 : FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -853,7 +941,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                             if (isCheckout)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 4),
-                                child: _buildStatusBadge(entry.cleaningStatus),
+                                child: _buildStatusBadge(entry.cleaningStatus, isOverdue: entry.isOverdue, isCheckoutToday: entry.isCheckoutToday),
                               ),
                             if (entry.nextEvent != null)
                           Container(
@@ -899,7 +987,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 12,
-                            color: entry.isOverdue ? Colors.red[800] : Colors.orange[800],
+                            color: entry.isOverdue ? Colors.red[800] : (entry.isCheckoutToday ? Colors.amber[800] : Colors.orange[800]),
                           ),
                         ),
                         TextSpan(
@@ -1067,22 +1155,34 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
       );
     }
   }
-  Widget _buildStatusBadge(String status) {
+  Widget _buildStatusBadge(String status, {bool isOverdue = false, bool isCheckoutToday = false}) {
     String displayStatus;
+    Color statusColor;
 
-    final lowerStatus = status.toLowerCase();
-    if (lowerStatus == 'cleaned') {
-      displayStatus = 'Cleaned';
-    } else if (lowerStatus == 'in_progress') {
-      displayStatus = 'In Progress';
+    if (isOverdue) {
+      displayStatus = 'Overdue';
+      statusColor = Colors.red[600]!;
+    } else if (isCheckoutToday) {
+      displayStatus = 'Needs Cleaning';
+      statusColor = Colors.amber[700]!;
     } else {
-      displayStatus = 'Not Cleaned';
+      final lowerStatus = status.toLowerCase();
+      if (lowerStatus == 'cleaned') {
+        displayStatus = 'Cleaned';
+        statusColor = Colors.green[600]!;
+      } else if (lowerStatus == 'in_progress') {
+        displayStatus = 'In Progress';
+        statusColor = Colors.blue[600]!;
+      } else {
+        displayStatus = 'Not Cleaned';
+        statusColor = Colors.grey[500]!;
+      }
     }
 
     return Text(
       displayStatus,
       style: TextStyle(
-        color: Colors.grey[500],
+        color: statusColor,
         fontSize: 9,
         fontWeight: FontWeight.w700,
       ),
