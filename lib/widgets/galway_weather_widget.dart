@@ -1,6 +1,19 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
+
+class _ForecastDay {
+  final String date;
+  final String condition;
+  final IconData icon;
+  final Color color;
+  final double minTemp;
+  final double maxTemp;
+
+  _ForecastDay(
+      this.date, this.condition, this.icon, this.color, this.minTemp, this.maxTemp);
+}
 
 class GalwayWeatherWidget extends StatefulWidget {
   const GalwayWeatherWidget({super.key});
@@ -15,6 +28,7 @@ class _GalwayWeatherWidgetState extends State<GalwayWeatherWidget> {
   String _condition = 'Loading...';
   IconData _weatherIcon = Icons.cloud;
   Color _iconColor = Colors.grey;
+  List<_ForecastDay> _forecast = [];
 
   @override
   void initState() {
@@ -25,7 +39,7 @@ class _GalwayWeatherWidgetState extends State<GalwayWeatherWidget> {
   Future<void> _fetchWeather() async {
     try {
       final url = Uri.parse(
-          'https://api.open-meteo.com/v1/forecast?latitude=53.2707&longitude=-9.0568&current_weather=true&timezone=Europe/Dublin');
+          'https://api.open-meteo.com/v1/forecast?latitude=53.2707&longitude=-9.0568&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Europe/Dublin');
       final response = await http.get(url);
       
       if (response.statusCode == 200) {
@@ -35,6 +49,29 @@ class _GalwayWeatherWidgetState extends State<GalwayWeatherWidget> {
         final code = current['weathercode'] as int;
 
         _parseWeatherCode(code, temp);
+
+        // Parse daily forecast
+        final daily = data['daily'];
+        if (daily != null) {
+          final times = daily['time'] as List;
+          final codes = daily['weathercode'] as List;
+          final maxTemps = daily['temperature_2m_max'] as List;
+          final minTemps = daily['temperature_2m_min'] as List;
+
+          List<_ForecastDay> parsedForecast = [];
+          for (int i = 0; i < times.length; i++) {
+            final params = _getWeatherParams(codes[i] as int);
+            parsedForecast.add(_ForecastDay(
+              times[i].toString(),
+              params['condition'],
+              params['icon'],
+              params['color'],
+              (minTemps[i] as num).toDouble(),
+              (maxTemps[i] as num).toDouble(),
+            ));
+          }
+          _forecast = parsedForecast;
+        }
       }
     } catch (_) {
       if (mounted) {
@@ -46,7 +83,7 @@ class _GalwayWeatherWidgetState extends State<GalwayWeatherWidget> {
     }
   }
 
-  void _parseWeatherCode(int code, String temp) {
+  Map<String, dynamic> _getWeatherParams(int code) {
     String condition;
     IconData icon;
     Color color;
@@ -94,20 +131,120 @@ class _GalwayWeatherWidgetState extends State<GalwayWeatherWidget> {
       color = Colors.grey;
     }
 
+    return {'condition': condition, 'icon': icon, 'color': color};
+  }
+
+  void _parseWeatherCode(int code, String temp) {
+    final params = _getWeatherParams(code);
     if (mounted) {
       setState(() {
         _temperature = temp;
-        _condition = condition;
-        _weatherIcon = icon;
-        _iconColor = color;
+        _condition = params['condition'];
+        _weatherIcon = params['icon'];
+        _iconColor = params['color'];
         _isLoading = false;
       });
     }
   }
 
+  void _showForecastPopup() {
+    if (_forecast.isEmpty) return;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      backgroundColor: Colors.white,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 24, bottom: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    '7-Day Forecast',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    itemCount: _forecast.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final day = _forecast[index];
+                      final date = DateTime.tryParse(day.date);
+                      final DateFormat formatter = DateFormat('EEE, MMM d');
+                      final dateString = date != null ? formatter.format(date) : day.date;
+                      
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 100,
+                              child: Text(
+                                dateString,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            Icon(day.icon, color: day.color, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                day.condition,
+                                style: TextStyle(
+                                  color: Colors.grey[700],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '${day.minTemp.round()}°',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${day.maxTemp.round()}°',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GestureDetector(
+      onTap: _showForecastPopup,
+      child: Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -187,6 +324,6 @@ class _GalwayWeatherWidgetState extends State<GalwayWeatherWidget> {
             ),
         ],
       ),
-    );
+    ));
   }
 }
