@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:wild_atlantic_hub/models/cleaning_details.dart';
-
 import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:wild_atlantic_hub/screens/apartment_inventory_list_page.dart';
 
@@ -12,7 +10,7 @@ class ProductInventoryPage extends StatefulWidget {
 }
 
 class _ProductInventoryPageState extends State<ProductInventoryPage> {
-  late Future<(List<CleaningDetails>, Map<String, int>, Map<String, bool>)> _dataFuture;
+  late Future<(List<Map<String, dynamic>>, Map<String, int>, Map<String, bool>)> _dataFuture;
   String _currentNote = '';
 
   // Brand colour palette
@@ -35,8 +33,8 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
     }
   }
 
-  Future<(List<CleaningDetails>, Map<String, int>, Map<String, bool>)> _fetchData() async {
-    final apartments = await ApiService.fetchCleaningDetails();
+  Future<(List<Map<String, dynamic>>, Map<String, int>, Map<String, bool>)> _fetchData() async {
+    final apartments = await ApiService.fetchInventoryApartments();
 
     // Fetch individual inventory item counts per apartment
     final inventoryCounts = <String, int>{};
@@ -44,13 +42,14 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
     
     await Future.wait(
       apartments.map((apt) async {
+        final aptId = apt['id']?.toString() ?? '';
         try {
-          final items = await ApiService.fetchInventoryForApartment(apt.id);
-          inventoryCounts[apt.id] = items.length;
-          hasLowStock[apt.id] = items.any((item) => (item.stock[apt.id] ?? 0) <= 2);
+          final items = await ApiService.fetchInventoryForApartment(aptId);
+          inventoryCounts[aptId] = items.length;
+          hasLowStock[aptId] = items.any((item) => (item.stock[aptId] ?? 0) <= 2);
         } catch (_) {
-          inventoryCounts[apt.id] = 0;
-          hasLowStock[apt.id] = false;
+          inventoryCounts[aptId] = 0;
+          hasLowStock[aptId] = false;
         }
       }),
     );
@@ -108,7 +107,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
           ),
         ],
       ),
-      body: FutureBuilder<(List<CleaningDetails>, Map<String, int>, Map<String, bool>)>(
+      body: FutureBuilder<(List<Map<String, dynamic>>, Map<String, int>, Map<String, bool>)>(
         future: _dataFuture,
         builder: (context, snapshot) => _buildBody(snapshot),
       ),
@@ -116,7 +115,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
   }
 
   Widget _buildBody(
-    AsyncSnapshot<(List<CleaningDetails>, Map<String, int>, Map<String, bool>)> snapshot,
+    AsyncSnapshot<(List<Map<String, dynamic>>, Map<String, int>, Map<String, bool>)> snapshot,
   ) {
     if (snapshot.connectionState == ConnectionState.waiting) {
       return const Center(child: CircularProgressIndicator(color: _primary));
@@ -170,15 +169,19 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
           }
 
           final aptIndex = hasNote ? index - 1 : index;
-          final apartment = apartments[aptIndex];
-          final inventoryCount = inventoryCounts[apartment.id] ?? 0;
-          final isLowStock = hasLowStockMap[apartment.id] ?? false;
+          final apt = apartments[aptIndex];
+          final aptId = apt['id']?.toString() ?? '';
+          final aptName = apt['name']?.toString() ?? aptId;
+          final aptImage = apt['imageUrl']?.toString() ?? '';
+          final inventoryCount = inventoryCounts[aptId] ?? 0;
+          final isLowStock = hasLowStockMap[aptId] ?? false;
           return _ApartmentInventoryCard(
-            apartment: apartment,
+            aptId: aptId,
+            aptName: aptName,
+            aptImage: aptImage,
             inventoryCount: inventoryCount,
             isLowStock: isLowStock,
-            onTap: () =>
-                _navigateToInventoryList(context, apartment.id, apartment.name),
+            onTap: () => _navigateToInventoryList(context, aptId, aptName),
           );
         },
       ),
@@ -187,7 +190,9 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
 }
 
 class _ApartmentInventoryCard extends StatelessWidget {
-  final CleaningDetails apartment;
+  final String aptId;
+  final String aptName;
+  final String aptImage;
   final int inventoryCount;
   final bool isLowStock;
   final VoidCallback onTap;
@@ -196,7 +201,9 @@ class _ApartmentInventoryCard extends StatelessWidget {
   static const Color _primaryDark = Color(0xFF5D8A7A);
 
   const _ApartmentInventoryCard({
-    required this.apartment,
+    required this.aptId,
+    required this.aptName,
+    required this.aptImage,
     required this.inventoryCount,
     required this.isLowStock,
     required this.onTap,
@@ -230,9 +237,9 @@ class _ApartmentInventoryCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    apartment.imageUrl.isNotEmpty
+                    aptImage.isNotEmpty
                         ? Image.network(
-                            apartment.imageUrl,
+                            aptImage,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => _placeholderBg(),
                           )
@@ -250,7 +257,7 @@ class _ApartmentInventoryCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        apartment.name,
+                        aptName,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Apartment Admin API
  * Description: REST API endpoints for the Wild Atlantic Hub apartment admin app. Handles cleaning status, ratings, feedback, inventory management, and booking notes.
- * Version:     3.2.1
+ * Version:     3.3.0
  * Author:      Wild Atlantic Apartments
  */
 
@@ -99,9 +99,9 @@ function aa_create_tables()
 add_action('admin_init', 'aa_check_db_version');
 function aa_check_db_version()
 {
-    if (get_option('aa_db_version') !== '3.2.1') {
+    if (get_option('aa_db_version') !== '3.3.0') {
         aa_create_tables();
-        update_option('aa_db_version', '3.2.1');
+        update_option('aa_db_version', '3.3.0');
     }
 }
 
@@ -168,6 +168,13 @@ function aa_register_routes()
     register_rest_route($ns, '/inventory/delete', [
         'methods' => 'POST',
         'callback' => 'aa_delete_inventory_api',
+        'permission_callback' => 'aa_check_auth',
+    ]);
+
+    // Inventory Apartments Route (Independent list for the Inventory section)
+    register_rest_route($ns, '/inventory-apartments', [
+        'methods' => 'GET',
+        'callback' => 'aa_get_inventory_apartments',
         'permission_callback' => 'aa_check_auth',
     ]);
 
@@ -449,6 +456,13 @@ function aa_save_feedback(WP_REST_Request $request)
 // 5. API CALLBACKS (INVENTORY)
 // ─────────────────────────────────────────────────────────────────────────────
 
+function aa_get_inventory_apartments()
+{
+    $apartments = json_decode(get_option('aa_inventory_apartments', '[]'), true);
+    if (!is_array($apartments)) $apartments = [];
+    return rest_ensure_response($apartments);
+}
+
 function aa_get_inventory(WP_REST_Request $request)
 {
     global $wpdb;
@@ -620,7 +634,7 @@ function aa_admin_page()
     // Handle POST Actions
     if (isset($_POST['aa_admin_action']) && check_admin_referer('aa_nonce')) {
 
-        // Add/Edit Room
+        // Add/Edit Room (for Cleaning / Default)
         if ($_POST['aa_admin_action'] === 'add_room') {
             $id = sanitize_title($_POST['apt_id']);
             $name = sanitize_text_field($_POST['apt_name']);
@@ -628,6 +642,7 @@ function aa_admin_page()
             $img = sanitize_url($_POST['apt_image']);
 
             $apts = json_decode(get_option('aa_apartments', '[]'), true);
+            if (!is_array($apts)) $apts = [];
             $exists = false;
             foreach ($apts as &$a) {
                 if ($a['id'] === $id) {
@@ -644,15 +659,53 @@ function aa_admin_page()
             echo '<div class="updated"><p>Saved successfully.</p></div>';
         }
 
-        // Delete Room
+        // Delete Room (for Cleaning / Default)
         if ($_POST['aa_admin_action'] === 'delete_room') {
             $id = sanitize_title($_POST['delete_apt_id']);
             $apts = json_decode(get_option('aa_apartments', '[]'), true);
+            if (!is_array($apts)) $apts = [];
             $apts = array_filter($apts, function ($a) use ($id) {
                 return $a['id'] !== $id;
             });
             update_option('aa_apartments', wp_json_encode(array_values($apts)));
             echo '<div class="updated"><p>Deleted successfully.</p></div>';
+        }
+
+        // Add/Edit Inventory Room
+        if ($_POST['aa_admin_action'] === 'add_inv_room') {
+            $id = sanitize_title($_POST['inv_apt_id']);
+            $name = sanitize_text_field($_POST['inv_apt_name']);
+            $cat = sanitize_text_field($_POST['inv_apt_category']);
+            $img = sanitize_url($_POST['inv_apt_image']);
+
+            $apts = json_decode(get_option('aa_inventory_apartments', '[]'), true);
+            if (!is_array($apts)) $apts = [];
+            $exists = false;
+            foreach ($apts as &$a) {
+                if ($a['id'] === $id) {
+                    $a['name'] = $name;
+                    $a['category'] = $cat;
+                    $a['imageUrl'] = $img;
+                    $exists = true;
+                    break;
+                }
+            }
+            if (!$exists)
+                $apts[] = ['id' => $id, 'name' => $name, 'category' => $cat, 'imageUrl' => $img];
+            update_option('aa_inventory_apartments', wp_json_encode($apts));
+            echo '<div class="updated"><p>Inventory Listing saved successfully.</p></div>';
+        }
+
+        // Delete Inventory Room
+        if ($_POST['aa_admin_action'] === 'delete_inv_room') {
+            $id = sanitize_title($_POST['delete_inv_apt_id']);
+            $apts = json_decode(get_option('aa_inventory_apartments', '[]'), true);
+            if (!is_array($apts)) $apts = [];
+            $apts = array_filter($apts, function ($a) use ($id) {
+                return $a['id'] !== $id;
+            });
+            update_option('aa_inventory_apartments', wp_json_encode(array_values($apts)));
+            echo '<div class="updated"><p>Inventory Listing deleted successfully.</p></div>';
         }
 
         // Add Inventory Item
@@ -685,6 +738,16 @@ function aa_admin_page()
             echo '<div class="updated"><p>Inventory item deleted.</p></div>';
         }
 
+        // Bulk Delete Inventory Items
+        if ($_POST['aa_admin_action'] === 'bulk_delete_inventory' && !empty($_POST['bulk_delete_ids']) && is_array($_POST['bulk_delete_ids'])) {
+            $deleted_count = 0;
+            foreach ($_POST['bulk_delete_ids'] as $id_to_delete) {
+                $wpdb->delete($wpdb->prefix . 'apartment_inventory', ['id' => (int) $id_to_delete]);
+                $deleted_count++;
+            }
+            echo '<div class="updated"><p>' . $deleted_count . ' inventory items deleted successfully.</p></div>';
+        }
+
         // Save Raw JSON Fallback
         if ($_POST['aa_admin_action'] === 'save_json') {
             $raw = stripslashes($_POST['aa_apartments_json'] ?? '[]');
@@ -698,6 +761,7 @@ function aa_admin_page()
     }
 
     $apartments = json_decode(get_option('aa_apartments', '[]'), true) ?: [];
+    $inventory_apartments = json_decode(get_option('aa_inventory_apartments', '[]'), true) ?: [];
     ?>
     <style>
         .aa-tabs {
@@ -744,14 +808,15 @@ function aa_admin_page()
         <h1>Apartment Admin Settings</h1>
 
         <h2 class="nav-tab-wrapper aa-tabs">
-            <a href="#tab-rooms" class="nav-tab nav-tab-active">Rooms & Apartments</a>
-            <a href="#tab-inventory" class="nav-tab">Inventory List</a>
+            <a href="#tab-rooms" class="nav-tab nav-tab-active">Cleaning Listings</a>
+            <a href="#tab-inventory-rooms" class="nav-tab">Inventory Listings</a>
+            <a href="#tab-inventory" class="nav-tab">Inventory Items</a>
             <a href="#tab-json" class="nav-tab">Advanced (JSON)</a>
             <a href="#tab-diagnostics" class="nav-tab">Diagnostics</a>
         </h2>
 
         <div id="tab-rooms" class="aa-tab-content active">
-            <h3>Manage Locations</h3>
+            <h3>Manage Cleaning Listings</h3>
             <table class="aa-table">
                 <tr>
                     <th>Image</th>
@@ -782,7 +847,7 @@ function aa_admin_page()
             </table>
 
             <hr>
-            <h3>Add / Update Location</h3>
+            <h3>Add / Update Cleaning Listing</h3>
             <form method="post">
                 <?php wp_nonce_field('aa_nonce'); ?>
                 <input type="hidden" name="aa_admin_action" value="add_room">
@@ -817,6 +882,73 @@ function aa_admin_page()
             </form>
         </div>
 
+        <div id="tab-inventory-rooms" class="aa-tab-content">
+            <h3>Manage Inventory Listings</h3>
+            <table class="aa-table">
+                <tr>
+                    <th>Image</th>
+                    <th>ID</th>
+                    <th>Category</th>
+                    <th>Name</th>
+                    <th>Actions</th>
+                </tr>
+                <?php foreach ($inventory_apartments as $apt): ?>
+                    <tr>
+                        <td><?php if (!empty($apt['imageUrl']))
+                            echo '<img src="' . esc_url($apt['imageUrl']) . '" class="aa-thumbnail">'; ?>
+                        </td>
+                        <td><?php echo esc_html($apt['id']); ?></td>
+                        <td><?php echo esc_html($apt['category'] ?? 'Apartment'); ?></td>
+                        <td><?php echo esc_html($apt['name']); ?></td>
+                        <td>
+                            <form method="post" style="display:inline;">
+                                <?php wp_nonce_field('aa_nonce'); ?>
+                                <input type="hidden" name="aa_admin_action" value="delete_inv_room">
+                                <input type="hidden" name="delete_inv_apt_id" value="<?php echo esc_attr($apt['id']); ?>">
+                                <button type="submit" class="button"
+                                    onclick="return confirm('Delete this inventory listing?');">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </table>
+
+            <hr>
+            <h3>Add / Update Inventory Listing</h3>
+            <form method="post">
+                <?php wp_nonce_field('aa_nonce'); ?>
+                <input type="hidden" name="aa_admin_action" value="add_inv_room">
+                <table class="form-table">
+                    <tr>
+                        <th><label>Category</label></th>
+                        <td><select name="inv_apt_category">
+                                <option value="Apartment">Apartment</option>
+                                <option value="Room">Room</option>
+                            </select></td>
+                    </tr>
+                    <tr>
+                        <th><label>Unique ID (Slug)</label></th>
+                        <td><input type="text" name="inv_apt_id" required class="regular-text"
+                                placeholder="e.g. inv_1 or inv_102"> <small>This links to the inventory items.</small>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label>Name</label></th>
+                        <td><input type="text" name="inv_apt_name" required class="regular-text"
+                                placeholder="e.g. Storage Unit A"></td>
+                    </tr>
+                    <tr>
+                        <th><label>Image URL</label></th>
+                        <td>
+                            <input type="text" name="inv_apt_image" class="regular-text image-url-input">
+                            <button class="button upload-image-btn">Select Image</button>
+                        </td>
+                    </tr>
+                </table>
+                <p><button type="submit" class="button button-primary">Save Inventory Listing</button></p>
+            </form>
+        </div>
+
         <div id="tab-inventory" class="aa-tab-content">
             <h3>Current Inventory</h3>
 
@@ -825,7 +957,7 @@ function aa_admin_page()
                 <label for="inv-filter-apt" style="font-weight: bold; margin-right: 10px;">Filter by Property:</label>
                 <select id="inv-filter-apt">
                     <option value="all">-- All Properties --</option>
-                    <?php foreach ($apartments as $apt): ?>
+                    <?php foreach ($inventory_apartments as $apt): ?>
                         <option value="<?php echo esc_attr($apt['id']); ?>"><?php echo esc_html($apt['name']); ?>
                             (<?php echo esc_html($apt['category'] ?? 'Apartment'); ?>)</option>
                     <?php endforeach; ?>
@@ -836,24 +968,32 @@ function aa_admin_page()
             $inv_table = $wpdb->prefix . 'apartment_inventory';
             $items = $wpdb->get_results("SELECT * FROM $inv_table ORDER BY apartment_id", ARRAY_A);
             ?>
-            <table class="aa-table">
-                <tr>
-                    <th>Image</th>
-                    <th>Item Name</th>
-                    <th>Room / Apartment</th>
-                    <th>Shop Link</th>
-                    <th>Qty</th>
-                    <th>Actions</th>
-                </tr>
+            <form method="post" id="bulk-delete-form">
+                <?php wp_nonce_field('aa_nonce'); ?>
+                <input type="hidden" name="aa_admin_action" value="bulk_delete_inventory">
+                <div style="margin-bottom: 10px;">
+                    <button type="submit" class="button" onclick="return confirm('Are you sure you want to delete the selected items?');">Delete Selected</button>
+                </div>
+                <table class="aa-table">
+                    <tr>
+                        <th style="width: 30px;"><input type="checkbox" id="inv-select-all"></th>
+                        <th>Image</th>
+                        <th>Item Name</th>
+                        <th>Room / Apartment</th>
+                        <th>Shop Link</th>
+                        <th>Qty</th>
+                        <th>Actions</th>
+                    </tr>
                 <?php foreach ($items as $item): ?>
                     <tr class="inv-row" data-apt="<?php echo esc_attr($item['apartment_id']); ?>">
+                        <td><input type="checkbox" name="bulk_delete_ids[]" value="<?php echo esc_attr($item['id']); ?>" class="inv-bulk-checkbox"></td>
                         <td><?php if (!empty($item['item_image_url']))
                             echo '<img src="' . esc_url($item['item_image_url']) . '" class="aa-thumbnail">'; ?>
                         </td>
                         <td><?php echo esc_html($item['item_name']); ?></td>
                         <td>
                             <?php
-                            $matched_apt = array_filter($apartments, function ($a) use ($item) {
+                            $matched_apt = array_filter($inventory_apartments, function ($a) use ($item) {
                                 return $a['id'] === $item['apartment_id'];
                             });
                             $matched_apt = reset($matched_apt);
@@ -884,8 +1024,9 @@ function aa_admin_page()
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($items))
-                    echo '<tr id="inv-no-items"><td colspan="6">No inventory items found.</td></tr>'; ?>
+                    echo '<tr id="inv-no-items"><td colspan="7">No inventory items found.</td></tr>'; ?>
             </table>
+            </form>
 
             <hr>
             <h3 id="inv-form-title">Add New Inventory Item</h3>
@@ -900,7 +1041,7 @@ function aa_admin_page()
                         <td>
                             <select name="inv_apt_id" required>
                                 <option value="">-- Select Room/Apartment --</option>
-                                <?php foreach ($apartments as $apt): ?>
+                                <?php foreach ($inventory_apartments as $apt): ?>
                                     <option value="<?php echo esc_attr($apt['id']); ?>"><?php echo esc_html($apt['name']); ?>
                                         (<?php echo esc_html($apt['category'] ?? 'Apartment'); ?>)</option>
                                 <?php endforeach; ?>
@@ -1046,6 +1187,17 @@ function aa_admin_page()
                 $('#inv-form-title').text('Add New Inventory Item');
                 $('#inv-submit-btn').text('Add Inventory Item');
                 $(this).hide();
+            });
+
+            // ── Bulk Select Logic ──
+            $('#inv-select-all').on('change', function() {
+                $('.inv-bulk-checkbox').prop('checked', $(this).is(':checked'));
+            });
+
+            $('.inv-bulk-checkbox').on('change', function() {
+                var total = $('.inv-bulk-checkbox').length;
+                var checked = $('.inv-bulk-checkbox:checked').length;
+                $('#inv-select-all').prop('checked', total === checked);
             });
 
         });

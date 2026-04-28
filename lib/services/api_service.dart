@@ -105,6 +105,20 @@ class ApiService {
 
   // --- Inventory Endpoints ---
 
+  /// Retrieves the dedicated inventory listings from `/inventory-apartments`
+  static Future<List<Map<String, dynamic>>> fetchInventoryApartments() async {
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/inventory-apartments');
+    final response = await http.get(uri, headers: _authHeaders);
+    if (response.statusCode == 200) {
+      final List<dynamic> decoded = json.decode(response.body);
+      return decoded.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception(
+        'Failed to load inventory apartments: ${response.reasonPhrase}',
+      );
+    }
+  }
+
   static Future<List<InventoryItem>> fetchInventoryForApartment(
     String apartmentId,
   ) async {

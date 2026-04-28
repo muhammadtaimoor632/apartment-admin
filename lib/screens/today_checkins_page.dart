@@ -883,7 +883,10 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: InkWell(
-          onTap: () => _showEventDetail(entry, isCheckout: true),
+          onTap: () {
+            _fetchData(silent: true);
+            _showEventDetail(entry, isCheckout: true);
+          },
           borderRadius: BorderRadius.circular(16),
           child: Stack(
             children: [
@@ -1044,7 +1047,10 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: InkWell(
-          onTap: () => _showEventDetail(entry, isCheckout: false),
+          onTap: () {
+            _fetchData(silent: true);
+            _showEventDetail(entry, isCheckout: false);
+          },
           borderRadius: BorderRadius.circular(16),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -1071,13 +1077,32 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        event.room,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.1,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            event.room,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                          if (!isHosting) ...() {
+                            final checkinNights = DateTime(event.end.year, event.end.month, event.end.day).difference(DateTime(event.start.year, event.start.month, event.start.day)).inDays;
+                            return [
+                              const SizedBox(height: 2),
+                              Text(
+                                'Staying for $checkinNights night${checkinNights == 1 ? '' : 's'}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ];
+                          }(),
+                        ],
                       ),
                     ),
                     if (isHosting)

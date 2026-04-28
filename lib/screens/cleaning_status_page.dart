@@ -48,8 +48,8 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
     super.dispose();
   }
 
-  Future<void> _initializeStatuses() async {
-    if (mounted) {
+  Future<void> _initializeStatuses({bool silent = false}) async {
+    if (mounted && !silent) {
       setState(() {
         _isFetchingInitialData = true;
       });
@@ -98,7 +98,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
         );
       }
     } finally {
-      if (mounted) {
+      if (mounted && !silent) {
         setState(() {
           _isFetchingInitialData = false;
         });
@@ -666,6 +666,12 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
           child: ExpansionTile(
             tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
             childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            onExpansionChanged: (isExpanded) {
+              if (isExpanded) {
+                // Fetch latest data silently when dropdown is opened
+                _initializeStatuses(silent: true);
+              }
+            },
             title: Row(
               children: [
                 Icon(Icons.history, size: 16, color: Colors.grey.shade600),
