@@ -201,23 +201,39 @@ function aa_check_auth(WP_REST_Request $request)
 // 3. EXISTING CORE HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-function aa_ensure_today_row(string $apartment_id)
+function aa_get_today_date($request = null) {
+    if ($request instanceof WP_REST_Request) {
+        $val = $request->get_param('client_date');
+        if (!empty($val)) return sanitize_text_field($val);
+    }
+    if (!empty($_GET['client_date'])) {
+        return sanitize_text_field($_GET['client_date']);
+    }
+    if (!empty($_REQUEST['client_date'])) {
+        return sanitize_text_field($_REQUEST['client_date']);
+    }
+    return current_time('Y-m-d');
+}
+
+function aa_ensure_today_row(string $apartment_id, $request = null)
 {
     global $wpdb;
     $table = $wpdb->prefix . 'apartment_cleaning_status';
-    $today = current_time('Y-m-d');
+    $today = aa_get_today_date($request);
     $exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE apartment_id = %s AND date_created = %s", $apartment_id, $today));
     if (!$exists) {
-        $wpdb->insert($table, ['apartment_id' => $apartment_id, 'status' => 'not_cleaned', 'date_created' => $today]);
+        $last_status = $wpdb->get_var($wpdb->prepare("SELECT status FROM $table WHERE apartment_id = %s ORDER BY date_created DESC LIMIT 1", $apartment_id));
+        $new_status = $last_status ?: 'not_cleaned';
+        $wpdb->insert($table, ['apartment_id' => $apartment_id, 'status' => $new_status, 'date_created' => $today]);
     }
 }
 
-function aa_sync_to_log(string $apartment_id)
+function aa_sync_to_log(string $apartment_id, $request = null)
 {
     global $wpdb;
     $status_table = $wpdb->prefix . 'apartment_cleaning_status';
     $log_table = 'wp_apartment_cleaning_logs';
-    $today = current_time('Y-m-d');
+    $today = aa_get_today_date($request);
 
     $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $status_table WHERE apartment_id = %s AND date_created = %s", $apartment_id, $today), ARRAY_A);
     if (!$row)
@@ -247,11 +263,21 @@ function aa_sync_to_log(string $apartment_id)
 // 4. EXISTING API CALLBACKS (STATUS & RATINGS)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function aa_get_all_statuses()
+function aa_get_all_statuses(WP_REST_Request $request)
 {
     global $wpdb;
     $table = $wpdb->prefix . 'apartment_cleaning_status';
-    $today = current_time('Y-m-d');
+    $today = aa_get_today_date($request);
+    
+    // Ensure rows exist for today before returning
+    $apartments = json_decode(get_option('aa_apartments', '[]'), true);
+    if (!is_array($apartments)) $apartments = [];
+    foreach ($apartments as $apt) {
+        if (!empty($apt['id'])) {
+            aa_ensure_today_row(sanitize_text_field($apt['id']), $request);
+        }
+    }
+
     $rows = $wpdb->get_results($wpdb->prepare("SELECT apartment_id, status FROM $table WHERE date_created = %s", $today), ARRAY_A);
     $result = [];
     foreach ($rows as $row) {
@@ -260,12 +286,12 @@ function aa_get_all_statuses()
     return rest_ensure_response($result);
 }
 
-function aa_get_status_details()
+function aa_get_status_details(WP_REST_Request $request)
 {
     global $wpdb;
     $table = $wpdb->prefix . 'apartment_cleaning_status';
     $history_table = $wpdb->prefix . 'apartment_rating_history';
-    $today = current_time('Y-m-d');
+    $today = aa_get_today_date($request);
 
     $apartments = json_decode(get_option('aa_apartments', '[]'), true);
     if (!is_array($apartments))
@@ -275,7 +301,7 @@ function aa_get_status_details()
 
     foreach ($apartments as $apt) {
         $apt_id = sanitize_text_field($apt['id']);
-        aa_ensure_today_row($apt_id);
+        aa_ensure_today_row($apt_id, $request);
 
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE apartment_id = %s AND date_created = %s", $apt_id, $today), ARRAY_A);
         $history_rows = $wpdb->get_results($wpdb->prepare("SELECT todays_rating as rating, remarks, date_created as date_label, cleaning_image_url as image_url FROM $table WHERE apartment_id = %s AND date_created != %s AND todays_rating > 0 ORDER BY date_created DESC LIMIT 3", $apt_id, $today), ARRAY_A);
@@ -318,7 +344,7 @@ function aa_update_status(WP_REST_Request $request)
 {
     global $wpdb;
     $table = $wpdb->prefix . 'apartment_cleaning_status';
-    $today = current_time('Y-m-d');
+    $today = aa_get_today_date();
     $now = current_time('mysql');
 
     $apartment_id = sanitize_text_field($request->get_param('apartment_id'));
@@ -327,7 +353,7 @@ function aa_update_status(WP_REST_Request $request)
 
     if (empty($apartment_id))
         return new WP_Error('missing_param', 'apartment_id is required.', ['status' => 400]);
-    aa_ensure_today_row($apartment_id);
+    aa_ensure_today_row($apartment_id, $request);
 
     $data = [];
     switch ($status_to_send) {
@@ -345,7 +371,7 @@ function aa_update_status(WP_REST_Request $request)
     }
 
     $wpdb->update($table, $data, ['apartment_id' => $apartment_id, 'date_created' => $today]);
-    aa_sync_to_log($apartment_id);
+    aa_sync_to_log($apartment_id, $request);
     return rest_ensure_response(['success' => true, 'message' => 'Status updated.']);
 }
 
@@ -353,7 +379,7 @@ function aa_update_rating(WP_REST_Request $request)
 {
     global $wpdb;
     $table = $wpdb->prefix . 'apartment_cleaning_status';
-    $today = current_time('Y-m-d');
+    $today = aa_get_today_date();
     $now = current_time('mysql');
 
     $apartment_id = sanitize_text_field($request->get_param('apartment_id'));
@@ -364,9 +390,9 @@ function aa_update_rating(WP_REST_Request $request)
     if ($rating < 1 || $rating > 5)
         return new WP_Error('invalid_rating', 'Rating must be between 1 and 5.', ['status' => 400]);
 
-    aa_ensure_today_row($apartment_id);
+    aa_ensure_today_row($apartment_id, $request);
     $wpdb->update($table, ['todays_rating' => $rating, 'last_rated_at' => $now], ['apartment_id' => $apartment_id, 'date_created' => $today]);
-    aa_sync_to_log($apartment_id);
+    aa_sync_to_log($apartment_id, $request);
 
     return rest_ensure_response(['success' => true, 'message' => 'Rating updated.', 'last_rated_at' => date('d M Y, g:i a', strtotime($now))]);
 }
@@ -375,7 +401,7 @@ function aa_save_feedback(WP_REST_Request $request)
 {
     global $wpdb;
     $table = $wpdb->prefix . 'apartment_cleaning_status';
-    $today = current_time('Y-m-d');
+    $today = aa_get_today_date();
     $now = current_time('mysql');
 
     $apartment_id = sanitize_text_field($request->get_param('apartment_id'));
@@ -384,7 +410,7 @@ function aa_save_feedback(WP_REST_Request $request)
 
     if (empty($apartment_id))
         return new WP_Error('missing_param', 'apartment_id is required.', ['status' => 400]);
-    aa_ensure_today_row($apartment_id);
+    aa_ensure_today_row($apartment_id, $request);
 
     $image_url = null;
     if (!empty($base64_image)) {

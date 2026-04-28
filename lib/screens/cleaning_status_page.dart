@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -14,7 +15,7 @@ class CleaningStatusPage extends StatefulWidget {
   State<CleaningStatusPage> createState() => _CleaningStatusPageState();
 }
 
-class _CleaningStatusPageState extends State<CleaningStatusPage> {
+class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBindingObserver {
   List<Apartment> _apartments = [];
   final Map<String, String> _cleaningStatus = {};
   final Map<String, bool> _isLoading = {};
@@ -33,19 +34,54 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
   final Map<String, bool> _expandedCards = {};
 
   bool _isFetchingInitialData = true;
+  DateTime _lastKnownRealDate = DateTime.now();
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeStatuses();
+    _startRefreshTimer();
+  }
+
+  void _startRefreshTimer() {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      _checkDateChange();
+    });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
     for (var controller in _remarksControllers.values) {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  void _checkDateChange() {
+    final now = DateTime.now();
+    if (now.day != _lastKnownRealDate.day ||
+        now.month != _lastKnownRealDate.month ||
+        now.year != _lastKnownRealDate.year) {
+      _lastKnownRealDate = now;
+      _initializeStatuses();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkDateChange();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _checkDateChange();
   }
 
   Future<void> _initializeStatuses({bool silent = false}) async {
@@ -58,6 +94,62 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
     try {
       final List<CleaningDetails> detailsList =
           await ApiService.fetchCleaningDetails();
+
+      bool needsApiRefresh = false;
+
+      // Automatically evaluate checkouts against the implicitly generated 'cleaned' statuses
+      try {
+        final calendars = await ApiService.fetchBookingCalendars();
+        final targetDay = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+
+        // helper for matching names
+        String _normalize(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9 ]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
+        bool _isRoomMatched(String a, String b) {
+          final aNorm = _normalize(a);
+          final bNorm = _normalize(b);
+          if (aNorm.isEmpty || bNorm.isEmpty) return false;
+          if (aNorm == bNorm) return true;
+          return RegExp(r'\b' + RegExp.escape(aNorm) + r'\b').hasMatch(bNorm) || 
+                 RegExp(r'\b' + RegExp.escape(bNorm) + r'\b').hasMatch(aNorm);
+        }
+
+        for (final detail in detailsList) {
+           // 'N/A' means the backend carried over the status from yesterday but no work has been done yet today
+           if (detail.status.toLowerCase() == 'cleaned' && detail.startTime == 'N/A' && detail.endTime == 'N/A') {
+              bool isOccupied = false;
+              for (final cal in calendars) {
+                  for (final ev in cal.events) {
+                      if (ev.isBlocked) continue;
+                      if (!_isRoomMatched(ev.room, detail.name)) continue;
+
+                      final start = DateTime(ev.start.year, ev.start.month, ev.start.day);
+                      final end = DateTime(ev.end.year, ev.end.month, ev.end.day);
+
+                      // Either checking out today, or spanning completely through today
+                      if (end.isAtSameMomentAs(targetDay) || (!start.isAfter(targetDay) && end.isAfter(targetDay))) {
+                         isOccupied = true;
+                         break;
+                      }
+                  }
+                  if (isOccupied) break;
+              }
+
+              if (isOccupied) {
+                 await ApiService.updateCleaningStatus(apartmentId: detail.id, statusToSend: 'reset', rating: 0);
+                 needsApiRefresh = true;
+              }
+           }
+        }
+      } catch (e) {
+        // Ignored, calendar parsing failed but we should proceed to render available data
+      }
+
+      if (needsApiRefresh) {
+        final renewedDetailsList = await ApiService.fetchCleaningDetails();
+        detailsList.clear();
+        detailsList.addAll(renewedDetailsList);
+      }
+
       if (mounted) {
         setState(() {
           _apartments = detailsList
@@ -67,7 +159,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
               .toList();
 
           for (final detail in detailsList) {
-            _cleaningStatus[detail.id] = 'not_cleaned';
+            _cleaningStatus[detail.id] = detail.status;
             _isLoading[detail.id] = false;
             _ratings[detail.id] = detail.rating;
             _lastRatedAts[detail.id] = detail.lastRatedAt;

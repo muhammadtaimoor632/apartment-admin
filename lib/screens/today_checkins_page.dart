@@ -653,10 +653,94 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
             const Color(0xFFFF9800),
             cleaning.length,
           ),
+          _buildCleaningNotes(cleaning),
           ...cleaning.map((e) => _buildCard(e, isCheckout: true)),
           const SizedBox(height: 32),
         ],
       ],
+    );
+  }
+
+  Widget _buildCleaningNotes(List<_BookingEntry> cleaning) {
+    final needsCleaning = cleaning.where((e) => !e.isCompleted).map((e) => e.event.room).toList();
+    
+    if (needsCleaning.isEmpty) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.green.shade50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.green.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Colors.green.shade700, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'All clear! No listings currently need cleaning.',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.green.shade900,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.assignment_late_outlined, color: Colors.orange.shade800, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                'Activity Summary for Cleaners',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange.shade900,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'The following listings need cleaning:',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.orange.shade900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '• ${needsCleaning.join("\n• ")}',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.orange.shade900,
+              fontWeight: FontWeight.w500,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

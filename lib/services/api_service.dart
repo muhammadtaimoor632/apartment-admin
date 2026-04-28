@@ -34,10 +34,18 @@ class ApiService {
 
   // --- Cleaning Status Endpoints ---
 
+  static String _clientDateQuery() {
+    final now = DateTime.now();
+    final year = now.year.toString();
+    final month = now.month.toString().padLeft(2, '0');
+    final day = now.day.toString().padLeft(2, '0');
+    return '?client_date=$year-$month-$day';
+  }
+
   static Map<String, String> lastKnownStatuses = {};
 
   static Future<Map<String, dynamic>> fetchCleaningStatuses() async {
-    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/all');
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/all${_clientDateQuery()}');
     final response = await http.get(uri);
     if (response.statusCode == 200) {
       final data = json.decode(response.body) as Map<String, dynamic>;
@@ -49,7 +57,7 @@ class ApiService {
   }
 
   static Future<List<CleaningDetails>> fetchCleaningDetails() async {
-    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/details');
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/details${_clientDateQuery()}');
     final response = await http.get(uri, headers: _authHeaders);
     if (response.statusCode == 200) {
       final List<dynamic> decodedData = json.decode(response.body);
@@ -69,7 +77,7 @@ class ApiService {
   }) {
     lastKnownStatuses[apartmentId] = statusToSend;
 
-    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/update');
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/update${_clientDateQuery()}');
     final Map<String, dynamic> requestBody = {
       'status': statusToSend,
       'apartment_id': apartmentId,
