@@ -34,8 +34,8 @@ class ApiService {
 
   // --- Cleaning Status Endpoints ---
 
-  static String _clientDateQuery() {
-    final now = DateTime.now();
+  static String _clientDateQuery([DateTime? targetDate]) {
+    final now = targetDate ?? DateTime.now();
     final year = now.year.toString();
     final month = now.month.toString().padLeft(2, '0');
     final day = now.day.toString().padLeft(2, '0');
@@ -44,8 +44,8 @@ class ApiService {
 
   static Map<String, String> lastKnownStatuses = {};
 
-  static Future<Map<String, dynamic>> fetchCleaningStatuses() async {
-    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/all${_clientDateQuery()}');
+  static Future<Map<String, dynamic>> fetchCleaningStatuses({DateTime? targetDate}) async {
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/all${_clientDateQuery(targetDate)}');
     final response = await http.get(uri);
     if (response.statusCode == 200) {
       final data = json.decode(response.body) as Map<String, dynamic>;
@@ -56,8 +56,8 @@ class ApiService {
     }
   }
 
-  static Future<List<CleaningDetails>> fetchCleaningDetails() async {
-    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/details${_clientDateQuery()}');
+  static Future<List<CleaningDetails>> fetchCleaningDetails({DateTime? targetDate}) async {
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/details${_clientDateQuery(targetDate)}');
     final response = await http.get(uri, headers: _authHeaders);
     if (response.statusCode == 200) {
       final List<dynamic> decodedData = json.decode(response.body);
@@ -299,54 +299,74 @@ class ApiService {
   // --- Admin General Notes ---
 
   static Future<String> fetchAdminNote() async {
-    const key = 'Admin|GlobalNote';
-    final uri = Uri.parse(
-      '$_wordpressUrl$_apiNamespace/booking-notes/get?booking_key=$key',
-    );
-    final response = await http.get(uri, headers: _authHeaders);
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      return (data['note'] ?? '') as String;
+    try {
+      const key = 'Admin|GlobalNote';
+      final uri = Uri.parse(
+        '$_wordpressUrl$_apiNamespace/booking-notes/get?booking_key=$key',
+      );
+      final response = await http.get(uri, headers: _authHeaders);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return (data['note'] ?? '') as String;
+      }
+      return '';
+    } catch (e) {
+      print('Network error fetching admin note: $e');
+      return '';
     }
-    return '';
   }
 
   static Future<bool> saveAdminNote(String note) async {
-    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/booking-notes/save');
-    final response = await http.post(
-      uri,
-      headers: _authHeaders,
-      body: json.encode({'booking_key': 'Admin|GlobalNote', 'note': note}),
-    );
-    return response.statusCode == 200;
+    try {
+      final uri = Uri.parse('$_wordpressUrl$_apiNamespace/booking-notes/save');
+      final response = await http.post(
+        uri,
+        headers: _authHeaders,
+        body: json.encode({'booking_key': 'Admin|GlobalNote', 'note': note}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Network error saving admin note: $e');
+      return false;
+    }
   }
 
   // --- Global Inventory Notes ---
 
   static Future<String> fetchGlobalInventoryNote() async {
-    const key = 'Admin|GlobalInventoryNote';
-    final uri = Uri.parse(
-      '$_wordpressUrl$_apiNamespace/booking-notes/get?booking_key=$key',
-    );
-    final response = await http.get(uri, headers: _authHeaders);
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      return (data['note'] ?? '') as String;
+    try {
+      const key = 'Admin|GlobalInventoryNote';
+      final uri = Uri.parse(
+        '$_wordpressUrl$_apiNamespace/booking-notes/get?booking_key=$key',
+      );
+      final response = await http.get(uri, headers: _authHeaders);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return (data['note'] ?? '') as String;
+      }
+      return '';
+    } catch (e) {
+      print('Network error fetching global inventory note: $e');
+      return '';
     }
-    return '';
   }
 
   static Future<bool> saveGlobalInventoryNote(String note) async {
-    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/booking-notes/save');
-    final response = await http.post(
-      uri,
-      headers: _authHeaders,
-      body: json.encode({
-        'booking_key': 'Admin|GlobalInventoryNote',
-        'note': note,
-      }),
-    );
-    return response.statusCode == 200;
+    try {
+      final uri = Uri.parse('$_wordpressUrl$_apiNamespace/booking-notes/save');
+      final response = await http.post(
+        uri,
+        headers: _authHeaders,
+        body: json.encode({
+          'booking_key': 'Admin|GlobalInventoryNote',
+          'note': note,
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Network error saving global inventory note: $e');
+      return false;
+    }
   }
 
   // --- Inventory Notes ---

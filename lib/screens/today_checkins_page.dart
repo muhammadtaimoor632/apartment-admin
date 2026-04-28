@@ -199,8 +199,8 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
 
     try {
       final calendarsFuture = ApiService.fetchBookingCalendars();
-      final detailsFuture = ApiService.fetchCleaningDetails();
-      final statusesFuture = ApiService.fetchCleaningStatuses();
+      final detailsFuture = ApiService.fetchCleaningDetails(targetDate: _selectedDate);
+      final statusesFuture = ApiService.fetchCleaningStatuses(targetDate: _selectedDate);
 
       final results = await Future.wait([
         calendarsFuture,
@@ -233,12 +233,12 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
           lastCleaned = maxDate;
         }
 
-        // If today's status is 'cleaned', last cleaned is at least today
+        // If the status on the fetched date is 'cleaned', then it was at least cleaned on that date
         if (currentStatus == 'cleaned') {
-          final now = DateTime.now();
-          final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-          if (lastCleaned == null || todayStr.compareTo(lastCleaned) > 0) {
-            lastCleaned = todayStr;
+          final target = _selectedDate;
+          final targetStr = '${target.year}-${target.month.toString().padLeft(2, '0')}-${target.day.toString().padLeft(2, '0')}';
+          if (lastCleaned == null || targetStr.compareTo(lastCleaned) > 0) {
+            lastCleaned = targetStr;
           }
         }
 
@@ -414,16 +414,16 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
           if (lastCheckoutEvent != null) {
             final checkoutDate = DateTime(lastCheckoutEvent.end.year, lastCheckoutEvent.end.month, lastCheckoutEvent.end.day);
 
-            if (checkoutDate.isAfter(todayReal)) {
-              // Future checkout — not yet due for cleaning
+            if (checkoutDate.isAfter(targetDate)) {
+              // Future checkout relative to selected date — not yet due for cleaning
               effectiveIsCleaned = false;
-            } else if (isViewingToday && checkoutDate.isAtSameMomentAs(todayReal)) {
-              // Checkout is TODAY — show "Checkout today, needs cleaning"
+            } else if (checkoutDate.isAtSameMomentAs(targetDate)) {
+              // Checkout is on the selected date
               isCheckoutToday = !effectiveIsCleaned;
               isOverdue = false;
-            } else if (isViewingToday && checkoutDate.isBefore(todayReal)) {
-              // Past checkout, viewing today — check if cleaning was done
-              bool wasCleaned = effectiveIsCleaned; // today's status says cleaned
+            } else if (checkoutDate.isBefore(targetDate)) {
+              // Past checkout relative to selected date — check if cleaning was done by this date
+              bool wasCleaned = effectiveIsCleaned; // targetDate's status says cleaned
               if (!wasCleaned) {
                 final lastCleanedStr = _getLastCleanedDate(roomName);
                 if (lastCleanedStr != null && lastCleanedStr.isNotEmpty) {
