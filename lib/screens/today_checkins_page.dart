@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:async';
 
 import 'package:wild_atlantic_hub/models/booking_event.dart';
+import 'package:wild_atlantic_hub/widgets/galway_weather_widget.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:wild_atlantic_hub/models/cleaning_details.dart';
 import 'package:wild_atlantic_hub/utils/form_label_mapper.dart';
@@ -587,6 +588,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       children: [
         _buildDateSelector(),
+        const GalwayWeatherWidget(),
         _AdminNotepad(key: _notepadKey),
         if (checkins.isNotEmpty) ...[
           _buildSectionHeader(
