@@ -1242,12 +1242,12 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
                         Row(
                           children: [
                             Icon(_statusIcon(status),
-                                size: 13, color: statColor),
+                                size: 11, color: statColor),
                             const SizedBox(width: 4),
                             Text(
                               _statusLabel(status),
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 10,
                                 color: statColor,
                                 fontWeight: FontWeight.w500,
                               ),

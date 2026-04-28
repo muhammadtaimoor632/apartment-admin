@@ -667,24 +667,24 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     if (needsCleaning.isEmpty) {
       return Container(
         width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.green.shade50,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.green.shade200),
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
         ),
         child: Row(
           children: [
-            Icon(Icons.check_circle_outline, color: Colors.green.shade700, size: 24),
-            const SizedBox(width: 12),
+            Icon(Icons.check_circle_outline, color: Colors.grey.shade700, size: 20),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'All clear! No listings currently need cleaning.',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Colors.green.shade900,
+                  color: Colors.grey.shade800,
                 ),
               ),
             ),
@@ -695,48 +695,48 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange.shade200),
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.assignment_late_outlined, color: Colors.orange.shade800, size: 22),
-              const SizedBox(width: 8),
+              Icon(Icons.assignment_turned_in_outlined, color: Colors.grey.shade800, size: 18),
+              const SizedBox(width: 6),
               Text(
                 'Activity Summary for Cleaners',
                 style: TextStyle(
-                  fontSize: 15,
+                  fontSize: 13,
                   fontWeight: FontWeight.bold,
-                  color: Colors.orange.shade900,
-                  letterSpacing: -0.2,
+                  color: Colors.black87,
+                  letterSpacing: -0.1,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           Text(
             'The following listings need cleaning:',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Colors.orange.shade900,
+              color: Colors.grey.shade800,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             '• ${needsCleaning.join("\n• ")}',
             style: TextStyle(
-              fontSize: 14,
-              color: Colors.orange.shade900,
+              fontSize: 12,
+              color: Colors.grey.shade800,
               fontWeight: FontWeight.w500,
-              height: 1.5,
+              height: 1.3,
             ),
           ),
         ],
@@ -1014,7 +1014,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                               Text(
                                 displaySubtitle,
                                 style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 11,
                                   color: entry.isOverdue ? Colors.red[600] : (entry.isCheckoutToday ? Colors.amber[800] : Colors.grey[600]),
                                   fontWeight: (entry.isOverdue || entry.isCheckoutToday) ? FontWeight.w600 : FontWeight.w500,
                                 ),
