@@ -147,6 +147,60 @@ class ApiService {
     );
   }
 
+  // --- Cleaning Checklist (Finish Cleaning popup) ---
+
+  static String _checklistKey(String apartmentId, [DateTime? targetDate]) {
+    final now = targetDate ?? DateTime.now();
+    final y = now.year.toString();
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    return 'CleaningChecklist|$apartmentId|$y-$m-$d';
+  }
+
+  static Future<bool> saveCleaningChecklist({
+    required String apartmentId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final uri = Uri.parse('$_wordpressUrl$_apiNamespace/booking-notes/save');
+      final response = await http.post(
+        uri,
+        headers: _authHeaders,
+        body: json.encode({
+          'booking_key': _checklistKey(apartmentId),
+          'note': json.encode(data),
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Failed to save cleaning checklist: $e');
+      return false;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> fetchCleaningChecklist({
+    required String apartmentId,
+    DateTime? targetDate,
+  }) async {
+    try {
+      final key = Uri.encodeComponent(_checklistKey(apartmentId, targetDate));
+      final uri = Uri.parse(
+        '$_wordpressUrl$_apiNamespace/booking-notes/get?booking_key=$key',
+      );
+      final response = await http.get(uri, headers: _authHeaders);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final note = (data['note'] ?? '') as String;
+        if (note.isEmpty) return null;
+        return json.decode(note) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Failed to fetch cleaning checklist: $e');
+      return null;
+    }
+  }
+
   // --- Inventory Endpoints ---
 
   /// Retrieves the dedicated inventory listings from `/inventory-apartments`

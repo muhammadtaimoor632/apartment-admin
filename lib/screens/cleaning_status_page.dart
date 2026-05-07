@@ -268,6 +268,240 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     }
   }
 
+  Future<void> _showFinishCleaningChecklist(Apartment apartment) async {
+    final towelsController = TextEditingController(text: '0');
+    bool codeSet = false;
+    bool parkingPassChecked = false;
+    bool waterFilled = false;
+
+    final bool? submitted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            void incrementTowels() {
+              final n = int.tryParse(towelsController.text) ?? 0;
+              setLocalState(() => towelsController.text = (n + 1).toString());
+            }
+
+            void decrementTowels() {
+              final n = int.tryParse(towelsController.text) ?? 0;
+              if (n > 0) {
+                setLocalState(() => towelsController.text = (n - 1).toString());
+              }
+            }
+
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Finish Cleaning Checklist',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    apartment.name,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 8),
+                    Text(
+                      'Rooms',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade500,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // Towels number selector
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Towels left on bed',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: decrementTowels,
+                            icon: const Icon(Icons.remove_circle_outline),
+                            color: const Color(0xFF8CB2A4),
+                            iconSize: 22,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                                minWidth: 32, minHeight: 32),
+                          ),
+                          SizedBox(
+                            width: 44,
+                            child: TextField(
+                              controller: towelsController,
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              style: const TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w600),
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                contentPadding:
+                                    EdgeInsets.symmetric(vertical: 6),
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: incrementTowels,
+                            icon: const Icon(Icons.add_circle_outline),
+                            color: const Color(0xFF8CB2A4),
+                            iconSize: 22,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                                minWidth: 32, minHeight: 32),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildChecklistTile(
+                      label: 'Set the code',
+                      value: codeSet,
+                      onChanged: (v) => setLocalState(() => codeSet = v),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildChecklistTile(
+                      label: 'Parking pass in place',
+                      value: parkingPassChecked,
+                      onChanged: (v) =>
+                          setLocalState(() => parkingPassChecked = v),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildChecklistTile(
+                      label: 'Water filled',
+                      value: waterFilled,
+                      onChanged: (v) => setLocalState(() => waterFilled = v),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF8CB2A4),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    elevation: 0,
+                  ),
+                  child: const Text('Submit'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (submitted != true) {
+      towelsController.dispose();
+      return;
+    }
+
+    final towelsCount = int.tryParse(towelsController.text) ?? 0;
+    towelsController.dispose();
+
+    final checklistData = {
+      'towels_left_on_bed': towelsCount,
+      'code_set': codeSet,
+      'parking_pass_checked': parkingPassChecked,
+      'water_filled': waterFilled,
+      'submitted_at': DateTime.now().toIso8601String(),
+    };
+
+    final saved = await ApiService.saveCleaningChecklist(
+      apartmentId: apartment.id,
+      data: checklistData,
+    );
+
+    if (!saved) {
+      _showSnackBar('Could not save checklist. Please try again.', Colors.red);
+      return;
+    }
+
+    await _updateStatus(apartment.id, 'stop');
+  }
+
+  Widget _buildChecklistTile({
+    required String label,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => onChanged(!value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label, style: const TextStyle(fontSize: 13)),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: const Color(0xFF8CB2A4),
+            ),
+            Text(
+              value ? 'Yes' : 'No',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: value
+                    ? const Color(0xFF8CB2A4)
+                    : Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _showResetConfirmation(Apartment apartment) async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
@@ -1141,7 +1375,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
         buttonText = 'Finish Cleaning';
         buttonColor = const Color(0xFFE57373);
         buttonIcon = Icons.stop_rounded;
-        onPressedAction = () => _updateStatus(apartment.id, 'stop');
+        onPressedAction = () => _showFinishCleaningChecklist(apartment);
         break;
       case 'cleaned':
         buttonText = 'Resume Cleaning';
