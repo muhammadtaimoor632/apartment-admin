@@ -30,6 +30,10 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
   final Map<String, String> _endTimes = {};
   final Map<String, List<RatingHistoryEntry>> _ratingHistories = {};
 
+  // Finish-cleaning checklist data per apartment (towels, code, parking, water)
+  final Map<String, Map<String, dynamic>> _checklists = {};
+  final Map<String, bool> _checklistsLoading = {};
+
   // Track which apartment card is expanded
   final Map<String, bool> _expandedCards = {};
 
@@ -194,6 +198,33 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
         setState(() {
           _isFetchingInitialData = false;
         });
+      }
+    }
+  }
+
+  Future<void> _fetchChecklist(String apartmentId) async {
+    if (_checklistsLoading[apartmentId] == true) return;
+    if (mounted) {
+      setState(() => _checklistsLoading[apartmentId] = true);
+    }
+    try {
+      final data = await ApiService.fetchCleaningChecklist(
+        apartmentId: apartmentId,
+      );
+      if (mounted) {
+        setState(() {
+          if (data != null) {
+            _checklists[apartmentId] = data;
+          } else {
+            _checklists.remove(apartmentId);
+          }
+        });
+      }
+    } catch (_) {
+      // Silent — checklist display is non-critical
+    } finally {
+      if (mounted) {
+        setState(() => _checklistsLoading[apartmentId] = false);
       }
     }
   }
@@ -458,6 +489,18 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
       return;
     }
 
+    if (mounted) {
+      setState(() {
+        _checklists[apartment.id] = {
+          'towels_left_on_bed': towelsCount,
+          'code_set': codeSet,
+          'parking_pass_checked': parkingPassChecked,
+          'water_filled': waterFilled,
+          'submitted_at': DateTime.now().toIso8601String(),
+        };
+      });
+    }
+
     await _updateStatus(apartment.id, 'stop');
   }
 
@@ -630,6 +673,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
               _remarksControllers[apartmentId]?.text = '';
               _selectedImages[apartmentId] = null;
               _existingImageUrls[apartmentId] = '';
+              _checklists.remove(apartmentId);
             }
           });
         }
@@ -1083,6 +1127,100 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     );
   }
 
+  Widget _buildChecklistDisplay(String apartmentId) {
+    final data = _checklists[apartmentId];
+    if (data == null) return const SizedBox.shrink();
+
+    final towels = (data['towels_left_on_bed'] is int)
+        ? data['towels_left_on_bed'] as int
+        : int.tryParse('${data['towels_left_on_bed'] ?? 0}') ?? 0;
+    final codeSet = data['code_set'] == true || data['code_set'] == 1;
+    final parkingPass =
+        data['parking_pass_checked'] == true || data['parking_pass_checked'] == 1;
+    final waterFilled = data['water_filled'] == true || data['water_filled'] == 1;
+
+    Widget row(IconData icon, String label, Widget trailing) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Icon(icon, size: 14, color: Colors.grey.shade500),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(label, style: const TextStyle(fontSize: 12)),
+            ),
+            trailing,
+          ],
+        ),
+      );
+    }
+
+    Widget yesNo(bool v) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              v ? Icons.check_circle : Icons.cancel,
+              size: 14,
+              color: v ? const Color(0xFF8CB2A4) : Colors.grey.shade400,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              v ? 'Yes' : 'No',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: v ? const Color(0xFF8CB2A4) : Colors.grey.shade500,
+              ),
+            ),
+          ],
+        );
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.checklist_rounded,
+                    size: 14, color: Colors.grey.shade600),
+                const SizedBox(width: 6),
+                Text(
+                  'Finish Cleaning Checklist',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            row(
+              Icons.king_bed_outlined,
+              'Towels left on bed',
+              Text(
+                '$towels',
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+            row(Icons.lock_outline, 'Code set', yesNo(codeSet)),
+            row(Icons.local_parking, 'Parking pass in place', yesNo(parkingPass)),
+            row(Icons.water_drop_outlined, 'Water filled', yesNo(waterFilled)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildImagePreview(String apartmentId) {
     final File? localImage = _selectedImages[apartmentId];
     final String serverUrl = _existingImageUrls[apartmentId] ?? '';
@@ -1438,9 +1576,13 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
           InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () {
+              final willExpand = !isExpanded;
               setState(() {
-                _expandedCards[apartment.id] = !isExpanded;
+                _expandedCards[apartment.id] = willExpand;
               });
+              if (willExpand && !_checklists.containsKey(apartment.id)) {
+                _fetchChecklist(apartment.id);
+              }
             },
             child: Padding(
               padding:
@@ -1614,6 +1756,9 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
                         ],
                       ),
                     ),
+
+                  // Finish-cleaning checklist (towels, code, parking, water)
+                  _buildChecklistDisplay(apartment.id),
 
                   // Rating history
                   _buildRatingHistorySection(apartment.id),
