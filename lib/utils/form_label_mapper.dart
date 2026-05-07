@@ -13,6 +13,7 @@ class FormLabelMapper {
     'dropdown 1': 'Car Park',
     'description 1': 'Special Requests',
     'description 2': 'Special Requests',
+    'description 3': 'Code Confirmation',
     'checkbox 1': 'Terms Agreement',
 
     // ── Kirwans Lane keys ──

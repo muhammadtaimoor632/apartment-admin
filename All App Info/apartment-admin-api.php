@@ -222,7 +222,7 @@ function aa_ensure_today_row(string $apartment_id, $request = null)
     $today = aa_get_today_date($request);
     $exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE apartment_id = %s AND date_created = %s", $apartment_id, $today));
     if (!$exists) {
-        $last_status = $wpdb->get_var($wpdb->prepare("SELECT status FROM $table WHERE apartment_id = %s AND date_created < %s ORDER BY date_created DESC LIMIT 1", $apartment_id, $today));
+        $last_status = $wpdb->get_var($wpdb->prepare("SELECT status FROM $table WHERE apartment_id = %s ORDER BY date_created DESC LIMIT 1", $apartment_id));
         $new_status = $last_status ?: 'not_cleaned';
         $wpdb->insert($table, ['apartment_id' => $apartment_id, 'status' => $new_status, 'date_created' => $today]);
     }
