@@ -27,7 +27,7 @@ class FormLabelMapper {
     'input radio 4': 'Parking',
     'input radio 5': 'Number of Cars',
     'checkbox': 'Confirmation',
-    'input text 1': 'Special Requests',
+    'input text 1': 'Door code confirmation',
   };
 
   /// Returns the friendly label for a given form field key.
