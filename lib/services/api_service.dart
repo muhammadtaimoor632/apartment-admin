@@ -149,29 +149,37 @@ class ApiService {
 
   // --- Cleaning Checklist (Finish Cleaning popup) ---
 
-  static String _checklistKey(String apartmentId, [DateTime? targetDate]) {
-    final now = targetDate ?? DateTime.now();
-    final y = now.year.toString();
-    final m = now.month.toString().padLeft(2, '0');
-    final d = now.day.toString().padLeft(2, '0');
-    return 'CleaningChecklist|$apartmentId|$y-$m-$d';
+  static String _formatDate(DateTime d) {
+    final y = d.year.toString();
+    final m = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '$y-$m-$day';
   }
 
   static Future<bool> saveCleaningChecklist({
     required String apartmentId,
     required Map<String, dynamic> data,
+    DateTime? targetDate,
   }) async {
     try {
-      final uri = Uri.parse('$_wordpressUrl$_apiNamespace/booking-notes/save');
+      final uri = Uri.parse(
+        '$_wordpressUrl$_apiNamespace/cleaning-checklist/save',
+      );
+      final body = <String, dynamic>{
+        'apartment_id': apartmentId,
+        'date': _formatDate(targetDate ?? DateTime.now()),
+        ...data,
+      };
       final response = await http.post(
         uri,
         headers: _authHeaders,
-        body: json.encode({
-          'booking_key': _checklistKey(apartmentId),
-          'note': json.encode(data),
-        }),
+        body: json.encode(body),
       );
-      return response.statusCode == 200;
+      if (response.statusCode == 200) return true;
+      debugPrint(
+        'saveCleaningChecklist failed: ${response.statusCode} ${response.body}',
+      );
+      return false;
     } catch (e) {
       debugPrint('Failed to save cleaning checklist: $e');
       return false;
@@ -183,16 +191,16 @@ class ApiService {
     DateTime? targetDate,
   }) async {
     try {
-      final key = Uri.encodeComponent(_checklistKey(apartmentId, targetDate));
+      final date = _formatDate(targetDate ?? DateTime.now());
       final uri = Uri.parse(
-        '$_wordpressUrl$_apiNamespace/booking-notes/get?booking_key=$key',
+        '$_wordpressUrl$_apiNamespace/cleaning-checklist/get'
+        '?apartment_id=${Uri.encodeQueryComponent(apartmentId)}&date=$date',
       );
       final response = await http.get(uri, headers: _authHeaders);
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final note = (data['note'] ?? '') as String;
-        if (note.isEmpty) return null;
-        return json.decode(note) as Map<String, dynamic>;
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        if (data['found'] == true) return data;
+        return null;
       }
       return null;
     } catch (e) {
