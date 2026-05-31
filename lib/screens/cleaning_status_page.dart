@@ -249,55 +249,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     }
   }
 
-  Future<void> _showCleaningTimePicker(String apartmentId) async {
-    final int? selectedDuration = await showDialog<int>(
-      context: context,
-      builder: (BuildContext context) {
-        return SimpleDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-          contentPadding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-          title: const Text(
-            'Estimated Cleaning Time',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-          children: <Widget>[
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 45),
-              child: const Text('45 mins'),
-            ),
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 60),
-              child: const Text('1 hour'),
-            ),
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 75),
-              child: const Text('1 hour 15 mins'),
-            ),
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 90),
-              child: const Text('1 hour 30 mins'),
-            ),
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 105),
-              child: const Text('1 hour 45 mins'),
-            ),
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 120),
-              child: const Text('2 hours'),
-            ),
-          ],
-        );
-      },
-    );
-    if (selectedDuration != null) {
-      _updateStatus(apartmentId, 'start', durationMinutes: selectedDuration);
-    }
-  }
+
 
   Future<void> _showFinishCleaningChecklist(Apartment apartment) async {
     final towelsController = TextEditingController(text: '0');
@@ -1525,7 +1477,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
         buttonText = 'Start Cleaning';
         buttonColor = const Color(0xFF8CB2A4);
         buttonIcon = Icons.play_arrow_rounded;
-        onPressedAction = () => _showCleaningTimePicker(apartment.id);
+        onPressedAction = () => _updateStatus(apartment.id, 'start');
     }
 
     return SizedBox(
