@@ -107,7 +107,17 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
         final targetDay = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
         // helper for matching names
-        String _normalize(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9 ]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
+        String _applyMapping(String s) {
+          final normalized = s.toLowerCase().trim();
+          if (normalized == 'room 1') return 'room 1 eyre square';
+          if (normalized == 'room 2') return 'room 2 eyre square';
+          if (normalized == 'room 3') return 'room 3 eyre square';
+          if (normalized == 'room 4') return 'room 4 eyre square';
+          if (normalized == 'room 5') return 'room 5 eyre square';
+          if (normalized == '18 kirwans court') return 'kirwans lane';
+          return s;
+        }
+        String _normalize(String s) => _applyMapping(s).toLowerCase().replaceAll(RegExp(r'[^a-z0-9 ]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
         bool _isRoomMatched(String a, String b) {
           final aNorm = _normalize(a);
           final bNorm = _normalize(b);

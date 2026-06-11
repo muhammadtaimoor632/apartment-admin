@@ -1401,6 +1401,12 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
   }
 }
 
+class _ChecklistItem {
+  String text;
+  bool isChecked;
+  _ChecklistItem({required this.text, this.isChecked = false});
+}
+
 class _AdminNotepad extends StatefulWidget {
   const _AdminNotepad({super.key});
   @override
@@ -1411,7 +1417,8 @@ class _AdminNotepadState extends State<_AdminNotepad> {
   bool _loading = true;
   bool _saving = false;
   bool _isEditing = false;
-  final _ctrl = TextEditingController();
+  List<_ChecklistItem> _items = [];
+  final _newItemCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -1419,26 +1426,42 @@ class _AdminNotepadState extends State<_AdminNotepad> {
     fetchNotes();
   }
 
+  @override
+  void dispose() {
+    _newItemCtrl.dispose();
+    super.dispose();
+  }
+
   void fetchNotes() {
     ApiService.fetchAdminNote().then((noteStr) {
       if (!mounted) return;
       if (_isEditing) return; // Do not overwrite user typing
       setState(() {
+        String rawText = noteStr;
         try {
           if (noteStr.trim().startsWith('[')) {
             final List<dynamic> decoded = json.decode(noteStr);
             if (decoded.isNotEmpty) {
-              // If it was the old list format, just extract all texts and join them
-              _ctrl.text = decoded
-                  .map((e) => e['text'].toString())
-                  .where((s) => s.isNotEmpty)
-                  .join('\n');
+              if (decoded[0] is Map && decoded[0].containsKey('text')) {
+                rawText = decoded.map((e) => e['text'].toString()).where((s) => s.isNotEmpty).join('\n');
+              }
             }
-          } else {
-            _ctrl.text = noteStr;
           }
-        } catch (_) {
-          _ctrl.text = noteStr;
+        } catch (_) {}
+
+        _items.clear();
+        for (var line in rawText.split('\n')) {
+          if (line.trim().isEmpty) continue;
+          bool isChecked = false;
+          String text = line;
+          if (line.trimLeft().startsWith('[x] ') || line.trimLeft().startsWith('[X] ')) {
+            isChecked = true;
+            text = line.replaceFirst(RegExp(r'^\s*\[[xX]\]\s*'), '');
+          } else if (line.trimLeft().startsWith('[ ] ')) {
+            isChecked = false;
+            text = line.replaceFirst(RegExp(r'^\s*\[ \]\s*'), '');
+          }
+          _items.add(_ChecklistItem(text: text, isChecked: isChecked));
         }
         _loading = false;
       });
@@ -1447,7 +1470,10 @@ class _AdminNotepadState extends State<_AdminNotepad> {
 
   Future<void> _saveNotesToServer() async {
     setState(() => _saving = true);
-    final ok = await ApiService.saveAdminNote(_ctrl.text);
+    
+    final noteString = _items.map((e) => '${e.isChecked ? '[x]' : '[ ]'} ${e.text}').join('\n');
+    
+    final ok = await ApiService.saveAdminNote(noteString);
     if (mounted) {
       setState(() => _saving = false);
       if (!ok) {
@@ -1468,12 +1494,42 @@ class _AdminNotepadState extends State<_AdminNotepad> {
     });
   }
 
+  void _addItem(String text) {
+    if (text.trim().isEmpty) return;
+    setState(() {
+      _items.add(_ChecklistItem(text: text.trim(), isChecked: false));
+      _newItemCtrl.clear();
+    });
+    if (!_isEditing) {
+      _saveNotesToServer();
+    }
+  }
+
+  void _toggleItem(int index, bool? value) {
+    setState(() {
+      _items[index].isChecked = value ?? false;
+    });
+    if (!_isEditing) {
+      _saveNotesToServer();
+    }
+  }
+
+  void _removeItem(int index) {
+    setState(() {
+      _items.removeAt(index);
+    });
+  }
+
+  void _updateItemText(int index, String newText) {
+    setState(() {
+      _items[index].text = newText;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
 
-    // Hide the entire block if empty and not editing?
-    // Usually a notepad should always be visible so they can click edit.
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -1503,7 +1559,7 @@ class _AdminNotepadState extends State<_AdminNotepad> {
               Text(
                 'Notes',
                 style: TextStyle(
-                  fontSize: _isEditing ? 14 : 12, // Subtle header
+                  fontSize: _isEditing ? 14 : 12,
                   fontWeight: FontWeight.w600,
                   color: Colors.grey[500],
                 ),
@@ -1528,36 +1584,107 @@ class _AdminNotepadState extends State<_AdminNotepad> {
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          if (_isEditing)
-            TextField(
-              controller: _ctrl,
-              minLines: 2,
-              maxLines: null,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-                hintText: 'Type your notes here...',
-              ),
-              style: const TextStyle(
+          const SizedBox(height: 8),
+          
+          if (_items.isEmpty && !_isEditing)
+            Text(
+              'Tap the pencil icon to add notes...',
+              style: TextStyle(
                 fontSize: 14,
-                color: Colors.black87,
+                color: Colors.grey[400],
+                fontStyle: FontStyle.italic,
                 height: 1.4,
               ),
             )
           else
-            Text(
-              _ctrl.text.isEmpty
-                  ? 'Tap the pencil icon to add notes...'
-                  : _ctrl.text,
-              style: TextStyle(
-                fontSize: 14,
-                color: _ctrl.text.isEmpty ? Colors.grey[400] : Colors.black87,
-                fontStyle: _ctrl.text.isEmpty
-                    ? FontStyle.italic
-                    : FontStyle.normal,
-                height: 1.4,
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _items.length,
+              padding: EdgeInsets.zero,
+              itemBuilder: (context, index) {
+                final item = _items[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 4.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: item.isChecked,
+                          onChanged: (val) => _toggleItem(index, val),
+                          activeColor: const Color(0xFF5A8B7B),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _isEditing
+                            ? TextFormField(
+                                initialValue: item.text,
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(vertical: 8),
+                                  border: InputBorder.none,
+                                ),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.black87,
+                                  decoration: item.isChecked ? TextDecoration.lineThrough : null,
+                                ),
+                                onChanged: (val) => _updateItemText(index, val),
+                              )
+                            : Text(
+                                item.text,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: item.isChecked ? Colors.grey : Colors.black87,
+                                  decoration: item.isChecked ? TextDecoration.lineThrough : null,
+                                ),
+                              ),
+                      ),
+                      if (_isEditing)
+                        InkWell(
+                          onTap: () => _removeItem(index),
+                          child: const Padding(
+                            padding: EdgeInsets.all(4.0),
+                            child: Icon(Icons.close, size: 16, color: Colors.red),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            
+          if (_isEditing)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Row(
+                children: [
+                  const SizedBox(width: 4),
+                  const Icon(Icons.add, size: 20, color: Colors.grey),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _newItemCtrl,
+                      decoration: const InputDecoration(
+                        hintText: 'Add a new note...',
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                        border: InputBorder.none,
+                      ),
+                      style: const TextStyle(fontSize: 14),
+                      onSubmitted: _addItem,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => _addItem(_newItemCtrl.text),
+                    child: const Text('Add', style: TextStyle(color: Color(0xFF5A8B7B))),
+                  ),
+                ],
               ),
             ),
         ],
