@@ -51,7 +51,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     final now = DateTime.now();
     _selectedDateRange = DateTimeRange(
       start: DateTime(now.year, now.month, 1),
-      end: DateTime(now.year, now.month + 1, 0),
+      end: DateTime(now.year, now.month, now.day),
     );
     WidgetsBinding.instance.addObserver(this);
     _initializeStatuses();
@@ -1805,14 +1805,11 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
                   final initialRange = _selectedDateRange ??
                       DateTimeRange(
                         start: DateTime(DateTime.now().year, DateTime.now().month, 1),
-                        end: DateTime(DateTime.now().year, DateTime.now().month + 1, 0),
+                        end: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
                       );
-                  final range = await showDateRangePicker(
+                  final range = await showDialog<DateTimeRange>(
                     context: context,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2030),
-                    initialDateRange: initialRange,
-                    builder: (context, child) {
+                    builder: (context) {
                       return Theme(
                         data: Theme.of(context).copyWith(
                           colorScheme: const ColorScheme.light(
@@ -1821,7 +1818,21 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
                             onSurface: Color(0xFF2C3E50),
                           ),
                         ),
-                        child: child!,
+                        child: Dialog(
+                          insetPadding: const EdgeInsets.all(16),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: SizedBox(
+                              height: 500,
+                              width: 400,
+                              child: DateRangePickerDialog(
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2030),
+                                initialDateRange: initialRange,
+                              ),
+                            ),
+                          ),
+                        ),
                       );
                     },
                   );
@@ -1882,7 +1893,8 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     final start = DateTime(_selectedDateRange!.start.year, _selectedDateRange!.start.month, _selectedDateRange!.start.day);
     final end = DateTime(_selectedDateRange!.end.year, _selectedDateRange!.end.month, _selectedDateRange!.end.day, 23, 59, 59);
 
-    int totalCleanings = 0;
+    int totalApartmentCleanings = 0;
+    int totalRoomsCleaned = 0;
     
     final apartmentWidgets = _apartments.map((apt) {
       int cleanings = 0;
@@ -1898,7 +1910,15 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
           }
         }
       }
-      totalCleanings += cleanings;
+      
+      bool isKirwansLane = apt.name.toLowerCase().contains('kirwans lane');
+      bool isRoom = apt.name.toLowerCase().contains('room');
+
+      if (isRoom && !isKirwansLane) {
+        totalRoomsCleaned += cleanings;
+      } else {
+        totalApartmentCleanings += cleanings;
+      }
 
       return Container(
         margin: const EdgeInsets.only(bottom: 8.0),
@@ -1955,7 +1975,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Total Cleanings',
+              'Total apartment cleaning:',
               style: TextStyle(
                 color: Color(0xFF2C3E50),
                 fontSize: 15,
@@ -1963,7 +1983,31 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
               ),
             ),
             Text(
-              '$totalCleanings',
+              '$totalApartmentCleanings',
+              style: const TextStyle(
+                color: Color(0xFF8CB2A4),
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Expanded(
+              child: Text(
+                'Total rooms cleaned:',
+                style: TextStyle(
+                  color: Color(0xFF2C3E50),
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Text(
+              '$totalRoomsCleaned',
               style: const TextStyle(
                 color: Color(0xFF8CB2A4),
                 fontSize: 20,
