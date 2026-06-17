@@ -8,6 +8,7 @@ import 'package:wild_atlantic_hub/models/apartment.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:wild_atlantic_hub/screens/status_details_page.dart';
 import 'package:wild_atlantic_hub/models/cleaning_details.dart';
+import 'package:wild_atlantic_hub/models/booking_event.dart';
 
 class CleaningStatusPage extends StatefulWidget {
   const CleaningStatusPage({super.key});
@@ -37,6 +38,9 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
   // Track which apartment card is expanded
   final Map<String, bool> _expandedCards = {};
 
+  DateTimeRange? _selectedDateRange;
+  List<BookingCalendar> _calendars = [];
+
   bool _isFetchingInitialData = true;
   DateTime _lastKnownRealDate = DateTime.now();
   Timer? _refreshTimer;
@@ -44,6 +48,11 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _selectedDateRange = DateTimeRange(
+      start: DateTime(now.year, now.month, 1),
+      end: DateTime(now.year, now.month + 1, 0),
+    );
     WidgetsBinding.instance.addObserver(this);
     _initializeStatuses();
     _startRefreshTimer();
@@ -88,6 +97,33 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     _checkDateChange();
   }
 
+  // helper for matching names
+  String _applyMapping(String s) {
+    final normalized = s.toLowerCase().trim();
+    if (normalized == 'room 1') return 'room 1 eyre square';
+    if (normalized == 'room 2') return 'room 2 eyre square';
+    if (normalized == 'room 3') return 'room 3 eyre square';
+    if (normalized == 'room 4') return 'room 4 eyre square';
+    if (normalized == 'room 5') return 'room 5 eyre square';
+    if (normalized == '18 kirwans court') return 'kirwans lane';
+    return s;
+  }
+
+  String _normalize(String s) => _applyMapping(s)
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9 ]'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  bool _isRoomMatched(String a, String b) {
+    final aNorm = _normalize(a);
+    final bNorm = _normalize(b);
+    if (aNorm.isEmpty || bNorm.isEmpty) return false;
+    if (aNorm == bNorm) return true;
+    return RegExp(r'\b' + RegExp.escape(aNorm) + r'\b').hasMatch(bNorm) ||
+        RegExp(r'\b' + RegExp.escape(bNorm) + r'\b').hasMatch(aNorm);
+  }
+
   Future<void> _initializeStatuses({bool silent = false}) async {
     if (mounted && !silent) {
       setState(() {
@@ -104,28 +140,12 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
       // Automatically evaluate checkouts against the implicitly generated 'cleaned' statuses
       try {
         final calendars = await ApiService.fetchBookingCalendars();
+        if (mounted) {
+          setState(() {
+            _calendars = calendars;
+          });
+        }
         final targetDay = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
-
-        // helper for matching names
-        String _applyMapping(String s) {
-          final normalized = s.toLowerCase().trim();
-          if (normalized == 'room 1') return 'room 1 eyre square';
-          if (normalized == 'room 2') return 'room 2 eyre square';
-          if (normalized == 'room 3') return 'room 3 eyre square';
-          if (normalized == 'room 4') return 'room 4 eyre square';
-          if (normalized == 'room 5') return 'room 5 eyre square';
-          if (normalized == '18 kirwans court') return 'kirwans lane';
-          return s;
-        }
-        String _normalize(String s) => _applyMapping(s).toLowerCase().replaceAll(RegExp(r'[^a-z0-9 ]'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
-        bool _isRoomMatched(String a, String b) {
-          final aNorm = _normalize(a);
-          final bNorm = _normalize(b);
-          if (aNorm.isEmpty || bNorm.isEmpty) return false;
-          if (aNorm == bNorm) return true;
-          return RegExp(r'\b' + RegExp.escape(aNorm) + r'\b').hasMatch(bNorm) || 
-                 RegExp(r'\b' + RegExp.escape(bNorm) + r'\b').hasMatch(aNorm);
-        }
 
         for (final detail in detailsList) {
            // 'N/A' means the backend carried over the status from yesterday but no work has been done yet today
@@ -1745,6 +1765,219 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     );
   }
 
+  Widget _buildCalculatorSection() {
+    return Card(
+      margin: const EdgeInsets.only(top: 8.0, bottom: 24.0),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 1,
+      color: Colors.white,
+      child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8CB2A4).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.cleaning_services, color: Color(0xFF8CB2A4), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Cleanings Calculator',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2C3E50),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: () async {
+                  final initialRange = _selectedDateRange ??
+                      DateTimeRange(
+                        start: DateTime(DateTime.now().year, DateTime.now().month, 1),
+                        end: DateTime(DateTime.now().year, DateTime.now().month + 1, 0),
+                      );
+                  final range = await showDateRangePicker(
+                    context: context,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2030),
+                    initialDateRange: initialRange,
+                    builder: (context, child) {
+                      return Theme(
+                        data: Theme.of(context).copyWith(
+                          colorScheme: const ColorScheme.light(
+                            primary: Color(0xFF8CB2A4),
+                            onPrimary: Colors.white,
+                            onSurface: Color(0xFF2C3E50),
+                          ),
+                        ),
+                        child: child!,
+                      );
+                    },
+                  );
+                  if (range != null) {
+                    setState(() {
+                      _selectedDateRange = range;
+                    });
+                  }
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade200, width: 1),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.date_range, color: Color(0xFF8CB2A4), size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _selectedDateRange == null
+                              ? 'Select Date Range'
+                              : "${DateFormat('MMM d, yyyy').format(_selectedDateRange!.start)} - ${DateFormat('MMM d, yyyy').format(_selectedDateRange!.end)}",
+                          style: TextStyle(
+                            color: Colors.grey.shade800,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_selectedDateRange != null) ...[
+                const SizedBox(height: 20),
+                _buildCalculatorResults(),
+              ],
+            ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCalculatorResults() {
+    if (_calendars.isEmpty && _apartments.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8CB2A4))),
+      );
+    }
+
+    final start = DateTime(_selectedDateRange!.start.year, _selectedDateRange!.start.month, _selectedDateRange!.start.day);
+    final end = DateTime(_selectedDateRange!.end.year, _selectedDateRange!.end.month, _selectedDateRange!.end.day, 23, 59, 59);
+
+    int totalCleanings = 0;
+    
+    final apartmentWidgets = _apartments.map((apt) {
+      int cleanings = 0;
+
+      for (final cal in _calendars) {
+        for (final ev in cal.events) {
+          if (ev.isBlocked) continue;
+          if (!_isRoomMatched(ev.room, apt.name)) continue;
+
+          final evEnd = DateTime(ev.end.year, ev.end.month, ev.end.day);
+          if (!evEnd.isBefore(start) && evEnd.isBefore(end)) {
+            cleanings++;
+          }
+        }
+      }
+      totalCleanings += cleanings;
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8.0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200, width: 1),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                apt.name,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade800,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF8CB2A4).withOpacity(0.15),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_circle_outline, size: 14, color: Color(0xFF8CB2A4)),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$cleanings',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF8CB2A4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }).toList();
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Total Cleanings',
+              style: TextStyle(
+                color: Color(0xFF2C3E50),
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              '$totalCleanings',
+              style: const TextStyle(
+                color: Color(0xFF8CB2A4),
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...apartmentWidgets,
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1769,19 +2002,22 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
         ],
       ),
       body: RefreshIndicator(
-              onRefresh: _initializeStatuses,
-              color: const Color(0xFF8CB2A4),
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14.0,
-                  vertical: 8.0,
-                ),
-                itemCount: _apartments.length,
-                itemBuilder: (context, index) {
-                  return _buildApartmentCard(_apartments[index]);
-                },
-              ),
-            ),
+        onRefresh: _initializeStatuses,
+        color: const Color(0xFF8CB2A4),
+        child: ListView.builder(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 14.0,
+            vertical: 8.0,
+          ),
+          itemCount: _apartments.length + 1,
+          itemBuilder: (context, index) {
+            if (index == _apartments.length) {
+              return _buildCalculatorSection();
+            }
+            return _buildApartmentCard(_apartments[index]);
+          },
+        ),
+      ),
     );
   }
 }
