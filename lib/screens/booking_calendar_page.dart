@@ -964,6 +964,13 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
   // ─── Day events bottom sheet ──────────────────────────────────
 
   void _showDayEventsSheet(DateTime date, List<BookingEvent> events) {
+    // Filter to only show arrivals
+    final arrivals = events.where((e) {
+      final start = DateTime(e.start.year, e.start.month, e.start.day);
+      final targetDate = DateTime(date.year, date.month, date.day);
+      return start.isAtSameMomentAs(targetDate);
+    }).toList();
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -978,6 +985,9 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
             borderRadius: BorderRadius.circular(20),
           ),
           padding: const EdgeInsets.all(20),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.8,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1011,11 +1021,18 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
                 ),
               ),
               Text(
-                '${events.length} booking${events.length == 1 ? '' : 's'}',
+                '${arrivals.length} arrival${arrivals.length == 1 ? '' : 's'}',
                 style: TextStyle(fontSize: 13, color: Colors.grey[500]),
               ),
               const SizedBox(height: 16),
-              ...events.map((e) => _buildEventCard(e)),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: arrivals.map((e) => _buildEventCard(e)).toList(),
+                  ),
+                ),
+              ),
             ],
           ),
         );
