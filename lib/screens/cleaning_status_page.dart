@@ -587,6 +587,62 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     }
   }
 
+  Future<void> _showStartCleaningPopup(Apartment apartment) async {
+    final bool? collected = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Start Cleaning', style: TextStyle(fontSize: 16)),
+        content: const Text(
+          'Have you collected the parking pass?',
+          style: TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(null),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No', style: TextStyle(color: Colors.red)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF8CB2A4),
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+
+    if (collected == null) return;
+
+    final existingData = _checklists[apartment.id] ?? {};
+    final updatedData = {
+      ...existingData,
+      'collected_parking_pass_start': collected,
+    };
+
+    if (mounted) {
+      setState(() {
+        _checklists[apartment.id] = updatedData;
+      });
+    }
+
+    await ApiService.saveCleaningChecklist(
+      apartmentId: apartment.id,
+      data: updatedData,
+    );
+
+    await _updateStatus(apartment.id, 'start');
+  }
+
   Future<void> _updateRating(String apartmentId, int newRating) async {
     if (!mounted) return;
 
@@ -1101,6 +1157,62 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     );
   }
 
+  Widget _buildStartChecklistDisplay(String apartmentId) {
+    final data = _checklists[apartmentId];
+    if (data == null || !data.containsKey('collected_parking_pass_start')) {
+      return const SizedBox.shrink();
+    }
+    
+    final bool collected = data['collected_parking_pass_start'] == true || data['collected_parking_pass_start'] == 1;
+    
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.blueGrey.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.blueGrey.shade100),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.local_parking, size: 16, color: Colors.blueGrey.shade600),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Have you collected the parking pass?',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blueGrey.shade700,
+                ),
+              ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  collected ? Icons.check_circle : Icons.cancel,
+                  size: 16,
+                  color: collected ? const Color(0xFF4CAF50) : Colors.red.shade400,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  collected ? 'Yes' : 'No',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: collected ? const Color(0xFF4CAF50) : Colors.red.shade400,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildChecklistDisplay(String apartmentId) {
     final data = _checklists[apartmentId] ?? {
       'towels_left_on_bed': 0,
@@ -1488,7 +1600,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
         buttonText = 'Start Cleaning';
         buttonColor = const Color(0xFF8CB2A4);
         buttonIcon = Icons.play_arrow_rounded;
-        onPressedAction = () => _updateStatus(apartment.id, 'start');
+        onPressedAction = () => _showStartCleaningPopup(apartment);
     }
 
     return SizedBox(
@@ -1719,6 +1831,9 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
                         ],
                       ),
                     ),
+
+                  // Start-cleaning parking pass check
+                  _buildStartChecklistDisplay(apartment.id),
 
                   // Finish-cleaning checklist (towels, code, parking, water)
                   _buildChecklistDisplay(apartment.id),
