@@ -32,10 +32,11 @@ function aa_create_tables()
         end_time        DATETIME     DEFAULT NULL,
         duration_minutes INT         DEFAULT NULL,
         remarks         TEXT         DEFAULT NULL,
-        cleaning_image_url VARCHAR(500) DEFAULT NULL,
         last_rated_at   DATETIME     DEFAULT NULL,
+        collected_parking_pass_start TINYINT(1) DEFAULT 0,
+        parking_pass_checked TINYINT(1) DEFAULT 0,
         date_created    DATE         NOT NULL,
-        UNIQUE KEY apartment_date (apartment_id, date_created)
+        KEY apartment_date (apartment_id, date_created)
     ) $charset;";
 
     // Rating history table (aqu_ prefix)
@@ -47,7 +48,8 @@ function aa_create_tables()
         remarks         TEXT         DEFAULT NULL,
         image_url       VARCHAR(500) DEFAULT NULL,
         rated_at        DATETIME     NOT NULL,
-        date_label      VARCHAR(20)  NOT NULL
+        date_label      VARCHAR(20)  NOT NULL,
+        collected_parking_pass_start TINYINT(1) DEFAULT 0
     ) $charset;";
 
     // Unified log table
@@ -62,6 +64,13 @@ function aa_create_tables()
         rating              INT(11)      DEFAULT 0,
         remarks             TEXT         DEFAULT '',
         feedback_image_url  VARCHAR(255) DEFAULT '',
+        towels_left_on_bed  INT(11)      DEFAULT 0,
+        code_set            TINYINT(1)   DEFAULT 0,
+        parking_pass_checked TINYINT(1)  DEFAULT 0,
+        water_filled        TINYINT(1)   DEFAULT 0,
+        mirror_lights_blue  TINYINT(1)   DEFAULT 0,
+        collected_parking_pass_start TINYINT(1) DEFAULT 0,
+        date_created        DATE         DEFAULT NULL,
         created_at          DATETIME     DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id)
     ) $charset;";
@@ -97,13 +106,110 @@ function aa_create_tables()
 
 // Auto-run table creation if version updates
 add_action('admin_init', 'aa_check_db_version');
+add_action('plugins_loaded', 'aa_check_db_version', 5); // also on plugins_loaded so REST API context works
+
 function aa_check_db_version()
 {
-    if (get_option('aa_db_version') !== '3.3.0') {
+    if (get_option('aa_db_version') !== '3.6.0') {
         aa_create_tables();
-        update_option('aa_db_version', '3.3.0');
+        aa_run_migrations();
+        update_option('aa_db_version', '3.6.0');
     }
 }
+
+/**
+ * Safe migrations — add any missing columns to wp_apartment_cleaning_logs
+ * without touching existing data. Uses SHOW COLUMNS before each ALTER so it
+ * is safe to run repeatedly.
+ */
+function aa_run_migrations()
+{
+    global $wpdb;
+    $log_table = 'wp_apartment_cleaning_logs';
+
+    // Check table exists first
+    $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $log_table)) === $log_table;
+    if (!$table_exists) {
+        return; // aa_create_tables() will create it
+    }
+
+    $existing_cols = array_column($wpdb->get_results("SHOW COLUMNS FROM $log_table", ARRAY_A), 'Field');
+
+    $needed = [
+        'rating' => "INT(11) DEFAULT 0",
+        'remarks' => "TEXT DEFAULT ''",
+        'feedback_image_url' => "VARCHAR(255) DEFAULT ''",
+        'towels_left_on_bed' => "INT(11) DEFAULT 0",
+        'code_set' => "TINYINT(1) DEFAULT 0",
+        'parking_pass_checked' => "TINYINT(1) DEFAULT 0",
+        'water_filled' => "TINYINT(1) DEFAULT 0",
+        'mirror_lights_blue' => "TINYINT(1) DEFAULT 0",
+        'collected_parking_pass_start' => "TINYINT(1) DEFAULT 0",
+        'duration_minutes' => "INT(11) DEFAULT 0",
+        'start_timestamp' => "DATETIME DEFAULT NULL",
+        'end_timestamp' => "DATETIME DEFAULT NULL",
+        'date_created' => "DATE DEFAULT NULL",
+    ];
+
+    foreach ($needed as $col => $definition) {
+        if (!in_array($col, $existing_cols, true)) {
+            $wpdb->query("ALTER TABLE $log_table ADD COLUMN `$col` $definition");
+        }
+    }
+
+    // Migrate checklist table
+    $checklist_table = $wpdb->prefix . 'apartment_cleaning_checklists';
+    $checklist_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $checklist_table)) === $checklist_table;
+    if ($checklist_exists) {
+        // Drop unique key if it exists
+        $has_unique_chk = $wpdb->get_row("SHOW INDEX FROM $checklist_table WHERE Key_name = 'apartment_date' AND Non_unique = 0");
+        if ($has_unique_chk) {
+            $wpdb->query("ALTER TABLE $checklist_table DROP INDEX apartment_date");
+            $wpdb->query("ALTER TABLE $checklist_table ADD INDEX apartment_date (apartment_id, checklist_date)");
+        }
+
+        $existing_chk_cols = array_column($wpdb->get_results("SHOW COLUMNS FROM $checklist_table", ARRAY_A), 'Field');
+        $needed_chk = [
+            'parking_pass_checked' => "TINYINT(1) NOT NULL DEFAULT 0",
+            'water_filled' => "TINYINT(1) NOT NULL DEFAULT 0",
+            'mirror_lights_blue' => "TINYINT(1) NOT NULL DEFAULT 0",
+            'collected_parking_pass_start' => "TINYINT(1) NOT NULL DEFAULT 0",
+        ];
+        foreach ($needed_chk as $col => $definition) {
+            if (!in_array($col, $existing_chk_cols, true)) {
+                $wpdb->query("ALTER TABLE $checklist_table ADD COLUMN `$col` $definition");
+            }
+        }
+    }
+
+    // Migrate status table
+    $status_table = $wpdb->prefix . 'apartment_cleaning_status';
+    $status_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $status_table)) === $status_table;
+    if ($status_exists) {
+        // Drop unique key if it exists
+        $has_unique = $wpdb->get_row("SHOW INDEX FROM $status_table WHERE Key_name = 'apartment_date' AND Non_unique = 0");
+        if ($has_unique) {
+            $wpdb->query("ALTER TABLE $status_table DROP INDEX apartment_date");
+            $wpdb->query("ALTER TABLE $status_table ADD INDEX apartment_date (apartment_id, date_created)");
+        }
+
+        $existing_stat_cols = array_column($wpdb->get_results("SHOW COLUMNS FROM $status_table", ARRAY_A), 'Field');
+        if (!in_array('collected_parking_pass_start', $existing_stat_cols, true)) {
+            $wpdb->query("ALTER TABLE $status_table ADD COLUMN `collected_parking_pass_start` TINYINT(1) DEFAULT 0");
+        }
+    }
+
+    // Migrate rating history table
+    $history_table = $wpdb->prefix . 'apartment_rating_history';
+    $history_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $history_table)) === $history_table;
+    if ($history_exists) {
+        $existing_hist_cols = array_column($wpdb->get_results("SHOW COLUMNS FROM $history_table", ARRAY_A), 'Field');
+        if (!in_array('collected_parking_pass_start', $existing_hist_cols, true)) {
+            $wpdb->query("ALTER TABLE $history_table ADD COLUMN `collected_parking_pass_start` TINYINT(1) DEFAULT 0");
+        }
+    }
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. REGISTER REST API ROUTES
@@ -190,6 +296,33 @@ function aa_register_routes()
         'callback' => 'aa_save_booking_note',
         'permission_callback' => 'aa_check_auth',
     ]);
+
+    // ── Debug: inspect wp_apartment_cleaning_logs ──
+    register_rest_route($ns, '/debug/logs', [
+        'methods' => 'GET',
+        'callback' => 'aa_debug_logs',
+        'permission_callback' => 'aa_check_auth',
+    ]);
+}
+
+function aa_debug_logs(WP_REST_Request $request)
+{
+    global $wpdb;
+    $log_table = 'wp_apartment_cleaning_logs';
+
+    // Get column names
+    $columns = $wpdb->get_results("SHOW COLUMNS FROM $log_table", ARRAY_A);
+    $col_names = array_column($columns, 'Field');
+
+    // Get most recent 5 rows
+    $rows = $wpdb->get_results("SELECT * FROM $log_table ORDER BY id DESC LIMIT 5", ARRAY_A);
+
+    return rest_ensure_response([
+        'table' => $log_table,
+        'columns' => $col_names,
+        'rows' => $rows,
+        'last_error' => $wpdb->last_error,
+    ]);
 }
 
 function aa_check_auth(WP_REST_Request $request)
@@ -201,10 +334,12 @@ function aa_check_auth(WP_REST_Request $request)
 // 3. EXISTING CORE HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-function aa_get_today_date($request = null) {
+function aa_get_today_date($request = null)
+{
     if ($request instanceof WP_REST_Request) {
         $val = $request->get_param('client_date');
-        if (!empty($val)) return sanitize_text_field($val);
+        if (!empty($val))
+            return sanitize_text_field($val);
     }
     if (!empty($_GET['client_date'])) {
         return sanitize_text_field($_GET['client_date']);
@@ -220,9 +355,9 @@ function aa_ensure_today_row(string $apartment_id, $request = null)
     global $wpdb;
     $table = $wpdb->prefix . 'apartment_cleaning_status';
     $today = aa_get_today_date($request);
-    $exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE apartment_id = %s AND date_created = %s", $apartment_id, $today));
+    $exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE apartment_id = %s AND date_created = %s ORDER BY id DESC LIMIT 1", $apartment_id, $today));
     if (!$exists) {
-        $last_status = $wpdb->get_var($wpdb->prepare("SELECT status FROM $table WHERE apartment_id = %s ORDER BY date_created DESC LIMIT 1", $apartment_id));
+        $last_status = $wpdb->get_var($wpdb->prepare("SELECT status FROM $table WHERE apartment_id = %s ORDER BY date_created DESC, id DESC LIMIT 1", $apartment_id));
         $new_status = $last_status ?: 'not_cleaned';
         $wpdb->insert($table, ['apartment_id' => $apartment_id, 'status' => $new_status, 'date_created' => $today]);
     }
@@ -235,14 +370,15 @@ function aa_sync_to_log(string $apartment_id, $request = null)
     $log_table = 'wp_apartment_cleaning_logs';
     $today = aa_get_today_date($request);
 
-    $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $status_table WHERE apartment_id = %s AND date_created = %s", $apartment_id, $today), ARRAY_A);
+    $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $status_table WHERE apartment_id = %s AND date_created = %s ORDER BY id DESC LIMIT 1", $apartment_id, $today), ARRAY_A);
     if (!$row)
         return;
 
-    $log_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $log_table WHERE apartment_slug = %s AND DATE(created_at) = %s", $apartment_id, $today));
+    $log_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $log_table WHERE apartment_slug = %s AND (date_created = %s OR DATE(created_at) = %s) ORDER BY id DESC LIMIT 1", $apartment_id, $today, $today));
 
     $log_data = [
         'apartment_slug' => $apartment_id,
+        'date_created' => $today,
         'status' => $row['status'],
         'start_timestamp' => $row['start_time'],
         'end_timestamp' => $row['end_time'],
@@ -251,6 +387,30 @@ function aa_sync_to_log(string $apartment_id, $request = null)
         'remarks' => $row['remarks'] ?? '',
         'feedback_image_url' => $row['cleaning_image_url'] ?? '',
     ];
+
+
+
+    $checklist_table = $wpdb->prefix . 'apartment_cleaning_checklists';
+    $chk_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $checklist_table WHERE apartment_id = %s AND checklist_date = %s ORDER BY id DESC LIMIT 1", $apartment_id, $today), ARRAY_A);
+    if ($chk_row) {
+        $log_data['towels_left_on_bed'] = (int) ($chk_row['towels_left_on_bed'] ?? 0);
+        $log_data['code_set'] = (int) ($chk_row['code_set'] ?? 0);
+        $log_data['parking_pass_checked'] = (int) ($chk_row['parking_pass_checked'] ?? 0);
+        $log_data['water_filled'] = (int) ($chk_row['water_filled'] ?? 0);
+        $log_data['mirror_lights_blue'] = (int) ($chk_row['mirror_lights_blue'] ?? 0);
+        $log_data['collected_parking_pass_start'] = (int) ($chk_row['collected_parking_pass_start'] ?? 0);
+    }
+
+    // Safe check before inserting new columns to prevent crashes
+    $col_mirror = $wpdb->get_results("SHOW COLUMNS FROM $log_table LIKE 'mirror_lights_blue'");
+    if (empty($col_mirror)) {
+        unset($log_data['towels_left_on_bed']);
+        unset($log_data['code_set']);
+        unset($log_data['parking_pass_checked']);
+        unset($log_data['water_filled']);
+        unset($log_data['mirror_lights_blue']);
+        unset($log_data['collected_parking_pass_start']);
+    }
 
     if ($log_id) {
         $wpdb->update($log_table, $log_data, ['id' => $log_id]);
@@ -268,10 +428,11 @@ function aa_get_all_statuses(WP_REST_Request $request)
     global $wpdb;
     $table = $wpdb->prefix . 'apartment_cleaning_status';
     $today = aa_get_today_date($request);
-    
+
     // Ensure rows exist for today before returning
     $apartments = json_decode(get_option('aa_apartments', '[]'), true);
-    if (!is_array($apartments)) $apartments = [];
+    if (!is_array($apartments))
+        $apartments = [];
     foreach ($apartments as $apt) {
         if (!empty($apt['id'])) {
             aa_ensure_today_row(sanitize_text_field($apt['id']), $request);
@@ -364,13 +525,36 @@ function aa_update_status(WP_REST_Request $request)
             $data = ['status' => 'cleaned', 'end_time' => $now];
             break;
         case 'reset':
-            $data = ['status' => 'not_cleaned', 'start_time' => null, 'end_time' => null, 'duration_minutes' => null, 'todays_rating' => 0, 'remarks' => null, 'cleaning_image_url' => null, 'last_rated_at' => null];
-            break;
+            // Instead of resetting columns, insert new empty rows to start a fresh session!
+            $wpdb->insert($table, [
+                'apartment_id' => $apartment_id,
+                'status' => 'not_cleaned',
+                'date_created' => $today
+            ]);
+
+            $log_table = 'wp_apartment_cleaning_logs';
+            $wpdb->insert($log_table, [
+                'apartment_slug' => $apartment_id,
+                'status' => 'not_cleaned',
+                'date_created' => $today
+            ]);
+
+            $checklist_table = $wpdb->prefix . 'apartment_cleaning_checklists';
+            $wpdb->insert($checklist_table, [
+                'apartment_id' => $apartment_id,
+                'checklist_date' => $today
+            ]);
+
+            return rest_ensure_response(['success' => true, 'message' => 'Status reset.']);
         default:
             return new WP_Error('invalid_status', 'Invalid status value.', ['status' => 400]);
     }
 
-    $wpdb->update($table, $data, ['apartment_id' => $apartment_id, 'date_created' => $today]);
+    $latest_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE apartment_id = %s AND date_created = %s ORDER BY id DESC LIMIT 1", $apartment_id, $today));
+    if ($latest_id) {
+        $wpdb->update($table, $data, ['id' => $latest_id]);
+    }
+
     aa_sync_to_log($apartment_id, $request);
     return rest_ensure_response(['success' => true, 'message' => 'Status updated.']);
 }
@@ -391,7 +575,10 @@ function aa_update_rating(WP_REST_Request $request)
         return new WP_Error('invalid_rating', 'Rating must be between 1 and 5.', ['status' => 400]);
 
     aa_ensure_today_row($apartment_id, $request);
-    $wpdb->update($table, ['todays_rating' => $rating, 'last_rated_at' => $now], ['apartment_id' => $apartment_id, 'date_created' => $today]);
+    $latest_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE apartment_id = %s AND date_created = %s ORDER BY id DESC LIMIT 1", $apartment_id, $today));
+    if ($latest_id) {
+        $wpdb->update($table, ['todays_rating' => $rating, 'last_rated_at' => $now], ['id' => $latest_id]);
+    }
     aa_sync_to_log($apartment_id, $request);
 
     return rest_ensure_response(['success' => true, 'message' => 'Rating updated.', 'last_rated_at' => date('d M Y, g:i a', strtotime($now))]);
@@ -453,7 +640,11 @@ function aa_save_feedback(WP_REST_Request $request)
     $update_data = ['remarks' => $remarks];
     if ($image_url !== null)
         $update_data['cleaning_image_url'] = $image_url;
-    $wpdb->update($table, $update_data, ['apartment_id' => $apartment_id, 'date_created' => $today]);
+
+    $latest_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE apartment_id = %s AND date_created = %s ORDER BY id DESC LIMIT 1", $apartment_id, $today));
+    if ($latest_id) {
+        $wpdb->update($table, $update_data, ['id' => $latest_id]);
+    }
 
     // Save to history
     $history_table = $wpdb->prefix . 'apartment_rating_history';
@@ -485,7 +676,8 @@ function aa_save_feedback(WP_REST_Request $request)
 function aa_get_inventory_apartments()
 {
     $apartments = json_decode(get_option('aa_inventory_apartments', '[]'), true);
-    if (!is_array($apartments)) $apartments = [];
+    if (!is_array($apartments))
+        $apartments = [];
     return rest_ensure_response($apartments);
 }
 
@@ -668,7 +860,8 @@ function aa_admin_page()
             $img = sanitize_url($_POST['apt_image']);
 
             $apts = json_decode(get_option('aa_apartments', '[]'), true);
-            if (!is_array($apts)) $apts = [];
+            if (!is_array($apts))
+                $apts = [];
             $exists = false;
             foreach ($apts as &$a) {
                 if ($a['id'] === $id) {
@@ -689,7 +882,8 @@ function aa_admin_page()
         if ($_POST['aa_admin_action'] === 'delete_room') {
             $id = sanitize_title($_POST['delete_apt_id']);
             $apts = json_decode(get_option('aa_apartments', '[]'), true);
-            if (!is_array($apts)) $apts = [];
+            if (!is_array($apts))
+                $apts = [];
             $apts = array_filter($apts, function ($a) use ($id) {
                 return $a['id'] !== $id;
             });
@@ -705,7 +899,8 @@ function aa_admin_page()
             $img = sanitize_url($_POST['inv_apt_image']);
 
             $apts = json_decode(get_option('aa_inventory_apartments', '[]'), true);
-            if (!is_array($apts)) $apts = [];
+            if (!is_array($apts))
+                $apts = [];
             $exists = false;
             foreach ($apts as &$a) {
                 if ($a['id'] === $id) {
@@ -726,7 +921,8 @@ function aa_admin_page()
         if ($_POST['aa_admin_action'] === 'delete_inv_room') {
             $id = sanitize_title($_POST['delete_inv_apt_id']);
             $apts = json_decode(get_option('aa_inventory_apartments', '[]'), true);
-            if (!is_array($apts)) $apts = [];
+            if (!is_array($apts))
+                $apts = [];
             $apts = array_filter($apts, function ($a) use ($id) {
                 return $a['id'] !== $id;
             });
@@ -998,7 +1194,9 @@ function aa_admin_page()
                 <?php wp_nonce_field('aa_nonce'); ?>
                 <input type="hidden" name="aa_admin_action" value="bulk_delete_inventory">
                 <div style="margin-bottom: 10px;">
-                    <button type="submit" class="button" onclick="return confirm('Are you sure you want to delete the selected items?');">Delete Selected</button>
+                    <button type="submit" class="button"
+                        onclick="return confirm('Are you sure you want to delete the selected items?');">Delete
+                        Selected</button>
                 </div>
                 <table class="aa-table">
                     <tr>
@@ -1010,48 +1208,49 @@ function aa_admin_page()
                         <th>Qty</th>
                         <th>Actions</th>
                     </tr>
-                <?php foreach ($items as $item): ?>
-                    <tr class="inv-row" data-apt="<?php echo esc_attr($item['apartment_id']); ?>">
-                        <td><input type="checkbox" name="bulk_delete_ids[]" value="<?php echo esc_attr($item['id']); ?>" class="inv-bulk-checkbox"></td>
-                        <td><?php if (!empty($item['item_image_url']))
-                            echo '<img src="' . esc_url($item['item_image_url']) . '" class="aa-thumbnail">'; ?>
-                        </td>
-                        <td><?php echo esc_html($item['item_name']); ?></td>
-                        <td>
-                            <?php
-                            $matched_apt = array_filter($inventory_apartments, function ($a) use ($item) {
-                                return $a['id'] === $item['apartment_id'];
-                            });
-                            $matched_apt = reset($matched_apt);
-                            echo $matched_apt ? esc_html($matched_apt['name']) : esc_html($item['apartment_id']);
-                            ?>
-                        </td>
-                        <td><?php if (!empty($item['shop_url']))
-                            echo '<a href="' . esc_url($item['shop_url']) . '" target="_blank">View Shop</a>'; ?>
-                        </td>
-                        <td><?php echo (int) $item['quantity']; ?></td>
-                        <td>
-                            <button type="button" class="button button-small edit-inv-btn"
-                                data-id="<?php echo esc_attr($item['id']); ?>"
-                                data-apt="<?php echo esc_attr($item['apartment_id']); ?>"
-                                data-name="<?php echo esc_attr($item['item_name']); ?>"
-                                data-img="<?php echo esc_url($item['item_image_url']); ?>"
-                                data-url="<?php echo esc_url($item['shop_url']); ?>"
-                                data-qty="<?php echo esc_attr($item['quantity']); ?>">Edit</button>
+                    <?php foreach ($items as $item): ?>
+                        <tr class="inv-row" data-apt="<?php echo esc_attr($item['apartment_id']); ?>">
+                            <td><input type="checkbox" name="bulk_delete_ids[]" value="<?php echo esc_attr($item['id']); ?>"
+                                    class="inv-bulk-checkbox"></td>
+                            <td><?php if (!empty($item['item_image_url']))
+                                echo '<img src="' . esc_url($item['item_image_url']) . '" class="aa-thumbnail">'; ?>
+                            </td>
+                            <td><?php echo esc_html($item['item_name']); ?></td>
+                            <td>
+                                <?php
+                                $matched_apt = array_filter($inventory_apartments, function ($a) use ($item) {
+                                    return $a['id'] === $item['apartment_id'];
+                                });
+                                $matched_apt = reset($matched_apt);
+                                echo $matched_apt ? esc_html($matched_apt['name']) : esc_html($item['apartment_id']);
+                                ?>
+                            </td>
+                            <td><?php if (!empty($item['shop_url']))
+                                echo '<a href="' . esc_url($item['shop_url']) . '" target="_blank">View Shop</a>'; ?>
+                            </td>
+                            <td><?php echo (int) $item['quantity']; ?></td>
+                            <td>
+                                <button type="button" class="button button-small edit-inv-btn"
+                                    data-id="<?php echo esc_attr($item['id']); ?>"
+                                    data-apt="<?php echo esc_attr($item['apartment_id']); ?>"
+                                    data-name="<?php echo esc_attr($item['item_name']); ?>"
+                                    data-img="<?php echo esc_url($item['item_image_url']); ?>"
+                                    data-url="<?php echo esc_url($item['shop_url']); ?>"
+                                    data-qty="<?php echo esc_attr($item['quantity']); ?>">Edit</button>
 
-                            <form method="post" style="display:inline;">
-                                <?php wp_nonce_field('aa_nonce'); ?>
-                                <input type="hidden" name="aa_admin_action" value="delete_inventory">
-                                <input type="hidden" name="delete_inv_id" value="<?php echo esc_attr($item['id']); ?>">
-                                <button type="submit" class="button button-small"
-                                    onclick="return confirm('Delete this item?');">Delete</button>
-                            </form>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                <?php if (empty($items))
-                    echo '<tr id="inv-no-items"><td colspan="7">No inventory items found.</td></tr>'; ?>
-            </table>
+                                <form method="post" style="display:inline;">
+                                    <?php wp_nonce_field('aa_nonce'); ?>
+                                    <input type="hidden" name="aa_admin_action" value="delete_inventory">
+                                    <input type="hidden" name="delete_inv_id" value="<?php echo esc_attr($item['id']); ?>">
+                                    <button type="submit" class="button button-small"
+                                        onclick="return confirm('Delete this item?');">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if (empty($items))
+                        echo '<tr id="inv-no-items"><td colspan="7">No inventory items found.</td></tr>'; ?>
+                </table>
             </form>
 
             <hr>
@@ -1216,11 +1415,11 @@ function aa_admin_page()
             });
 
             // ── Bulk Select Logic ──
-            $('#inv-select-all').on('change', function() {
+            $('#inv-select-all').on('change', function () {
                 $('.inv-bulk-checkbox').prop('checked', $(this).is(':checked'));
             });
 
-            $('.inv-bulk-checkbox').on('change', function() {
+            $('.inv-bulk-checkbox').on('change', function () {
                 var total = $('.inv-bulk-checkbox').length;
                 var checked = $('.inv-bulk-checkbox:checked').length;
                 $('#inv-select-all').prop('checked', total === checked);
@@ -1229,4 +1428,330 @@ function aa_admin_page()
         });
     </script>
     <?php
+}
+/**
+ * Cleaning Checklist module — "Finish Cleaning" popup.
+ *
+ * Drop-in include for the Apartment Admin API plugin.
+ *
+ * To enable:
+ *   1. Place this file at: includes/cleaning-checklist.php (relative to the main plugin file).
+ *   2. In the main plugin file (apartment-admin.php), add near the top
+ *      (after the ABSPATH guard):
+ *
+ *          require_once plugin_dir_path(__FILE__) . 'includes/cleaning-checklist.php';
+ *
+ *   3. Bump $version in aa_check_db_version() (e.g. '3.3.0' → '3.4.0') so
+ *      the new table is created on next admin page load. Or visit
+ *      Settings → Apartment Admin → Diagnostics → "Force Re-Create Tables".
+ *
+ * Routes (namespace: apartment_admin/v1):
+ *   POST /cleaning-checklist/save
+ *   GET  /cleaning-checklist/get?apartment_id=...&date=YYYY-MM-DD
+ *   GET  /cleaning-checklist/list?apartment_id=...&limit=30
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. TABLE CREATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Hook our table into the existing aa_create_tables() routine so the
+ * shared admin "Force Re-Create Tables" button creates this one too.
+ *
+ * Uses the same dbDelta pattern and $wpdb->prefix as the other tables.
+ */
+add_action('aa_create_tables_extra', 'aa_create_cleaning_checklist_table');
+
+function aa_create_cleaning_checklist_table()
+{
+    global $wpdb;
+    $charset = $wpdb->get_charset_collate();
+    $table = $wpdb->prefix . 'apartment_cleaning_checklists';
+
+    $sql = "CREATE TABLE IF NOT EXISTS $table (
+        id                    BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        apartment_id          VARCHAR(100) NOT NULL,
+        checklist_date        DATE         NOT NULL,
+        towels_left_on_bed    INT          NOT NULL DEFAULT 0,
+        code_set              TINYINT(1)   NOT NULL DEFAULT 0,
+        parking_pass_checked  TINYINT(1)   NOT NULL DEFAULT 0,
+        water_filled          TINYINT(1)   NOT NULL DEFAULT 0,
+        mirror_lights_blue    TINYINT(1)   NOT NULL DEFAULT 0,
+        collected_parking_pass_start TINYINT(1) NOT NULL DEFAULT 0,
+        submitted_at          DATETIME     DEFAULT NULL,
+        created_at            DATETIME     DEFAULT CURRENT_TIMESTAMP,
+        updated_at            DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY apartment_date (apartment_id, checklist_date),
+        KEY apartment_id (apartment_id),
+        KEY checklist_date (checklist_date)
+    ) $charset;";
+
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta($sql);
+}
+
+/**
+ * Safety net: if the host plugin fires aa_create_tables() directly without
+ * the do_action() hook (older deploys), still ensure the table exists once.
+ */
+add_action('plugins_loaded', 'aa_cleaning_checklist_ensure_table', 20);
+function aa_cleaning_checklist_ensure_table()
+{
+    global $wpdb;
+    $table = $wpdb->prefix . 'apartment_cleaning_checklists';
+    $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table;
+    if (!$exists) {
+        aa_create_cleaning_checklist_table();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. REST ROUTES
+// ─────────────────────────────────────────────────────────────────────────────
+
+add_action('rest_api_init', 'aa_register_cleaning_checklist_routes');
+
+function aa_register_cleaning_checklist_routes()
+{
+    $ns = 'apartment_admin/v1';
+
+    register_rest_route($ns, '/cleaning-checklist/save', [
+        'methods' => 'POST',
+        'callback' => 'aa_save_cleaning_checklist',
+        'permission_callback' => 'aa_check_auth',
+    ]);
+
+    register_rest_route($ns, '/cleaning-checklist/get', [
+        'methods' => 'GET',
+        'callback' => 'aa_get_cleaning_checklist',
+        'permission_callback' => 'aa_check_auth',
+    ]);
+
+    register_rest_route($ns, '/cleaning-checklist/list', [
+        'methods' => 'GET',
+        'callback' => 'aa_list_cleaning_checklists',
+        'permission_callback' => 'aa_check_auth',
+    ]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. CALLBACKS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function aa_save_cleaning_checklist(WP_REST_Request $request)
+{
+    global $wpdb;
+    $table = $wpdb->prefix . 'apartment_cleaning_checklists';
+    $log_table = 'wp_apartment_cleaning_logs';
+
+    $apartment_id = sanitize_text_field($request->get_param('apartment_id'));
+    $date = sanitize_text_field($request->get_param('date'));
+
+    if (empty($apartment_id)) {
+        return new WP_Error('missing_param', 'apartment_id is required.', ['status' => 400]);
+    }
+    if (empty($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        $date = current_time('Y-m-d');
+    }
+
+    $towels = max(0, (int) $request->get_param('towels_left_on_bed'));
+    $code_set = $request->get_param('code_set') ? 1 : 0;
+    $parking_pass = $request->get_param('parking_pass_checked') ? 1 : 0;
+    $water_filled = $request->get_param('water_filled') ? 1 : 0;
+    $mirror_lights = $request->get_param('mirror_lights_blue') ? 1 : 0;
+    $parking_start = $request->get_param('collected_parking_pass_start') ? 1 : 0;
+
+    // ── Rating passed directly from the app ──────────────────────────────────
+    $rating = max(0, min(5, (int) $request->get_param('rating')));
+
+    $submitted_raw = $request->get_param('submitted_at');
+    $ts = !empty($submitted_raw) ? strtotime($submitted_raw) : false;
+    $submitted_at = $ts ? gmdate('Y-m-d H:i:s', $ts) : current_time('mysql');
+
+    // ── 1. Save to aqu_ checklist table ──────────────────────────────────────
+    $col_mirror = $wpdb->get_results("SHOW COLUMNS FROM $table LIKE 'mirror_lights_blue'");
+    $has_mirror = !empty($col_mirror);
+
+    $data = [
+        'apartment_id' => $apartment_id,
+        'checklist_date' => $date,
+        'towels_left_on_bed' => $towels,
+        'code_set' => $code_set,
+        'parking_pass_checked' => $parking_pass,
+        'water_filled' => $water_filled,
+        'submitted_at' => $submitted_at,
+    ];
+    $formats = ['%s', '%s', '%d', '%d', '%d', '%d', '%s'];
+
+    if ($has_mirror) {
+        $data['mirror_lights_blue'] = $mirror_lights;
+        $data['collected_parking_pass_start'] = $parking_start;
+        $formats[] = '%d';
+        $formats[] = '%d';
+    }
+
+    $existing_id = $wpdb->get_var($wpdb->prepare(
+        "SELECT id FROM $table WHERE apartment_id = %s AND checklist_date = %s ORDER BY id DESC LIMIT 1",
+        $apartment_id,
+        $date
+    ));
+
+    if ($existing_id) {
+        $result = $wpdb->update($table, $data, ['id' => $existing_id], $formats, ['%d']);
+        $row_id = $existing_id;
+    } else {
+        $result = $wpdb->insert($table, $data, $formats);
+        $row_id = $wpdb->insert_id;
+    }
+
+    if ($result === false) {
+        return new WP_Error('db_error', 'Failed to save checklist: ' . $wpdb->last_error, ['status' => 500]);
+    }
+
+    // ── 2. Write directly to wp_apartment_cleaning_logs ──────────────────────
+    // Ensure the log table has the columns we need (safe if they already exist)
+    $log_cols = array_column($wpdb->get_results("SHOW COLUMNS FROM $log_table", ARRAY_A), 'Field');
+
+    $log_data = [
+        'apartment_slug' => $apartment_id,
+        'towels_left_on_bed' => $towels,
+        'code_set' => $code_set,
+        'parking_pass_checked' => $parking_pass,
+        'water_filled' => $water_filled,
+    ];
+
+    // Only add columns that exist in the live DB
+    if (in_array('mirror_lights_blue', $log_cols))
+        $log_data['mirror_lights_blue'] = $mirror_lights;
+    if (in_array('collected_parking_pass_start', $log_cols))
+        $log_data['collected_parking_pass_start'] = $parking_start;
+    if (in_array('rating', $log_cols) && $rating > 0)
+        $log_data['rating'] = $rating;
+
+    // Also pull status / start / end / remarks from the status table so the log row is complete
+    $status_row = $wpdb->get_row($wpdb->prepare(
+        "SELECT status, start_time, end_time, duration_minutes, todays_rating, remarks, cleaning_image_url
+         FROM {$wpdb->prefix}apartment_cleaning_status
+         WHERE apartment_id = %s AND date_created = %s ORDER BY id DESC LIMIT 1",
+        $apartment_id,
+        $date
+    ), ARRAY_A);
+
+    if ($status_row) {
+        $log_data['status'] = $status_row['status'];
+        $log_data['start_timestamp'] = $status_row['start_time'];
+        $log_data['end_timestamp'] = $status_row['end_time'];
+        $log_data['duration_minutes'] = (int) ($status_row['duration_minutes'] ?? 0);
+        $log_data['remarks'] = $status_row['remarks'] ?? '';
+        $log_data['feedback_image_url'] = $status_row['cleaning_image_url'] ?? '';
+
+        // If app didn't pass a rating, fall back to what's already in the status table
+        if ($rating === 0 && (int) ($status_row['todays_rating'] ?? 0) > 0) {
+            $log_data['rating'] = (int) $status_row['todays_rating'];
+        }
+    }
+
+    $log_id = $wpdb->get_var($wpdb->prepare(
+        "SELECT id FROM $log_table WHERE apartment_slug = %s AND (date_created = %s OR DATE(created_at) = %s) ORDER BY id DESC LIMIT 1",
+        $apartment_id,
+        $date,
+        $date
+    ));
+
+    $log_data['date_created'] = $date;
+
+    if ($log_id) {
+        $wpdb->update($log_table, $log_data, ['id' => $log_id]);
+    } else {
+        $wpdb->insert($log_table, $log_data);
+    }
+
+    return rest_ensure_response([
+        'success' => true,
+        'id' => (int) $row_id,
+        'data' => $data,
+    ]);
+}
+
+function aa_get_cleaning_checklist(WP_REST_Request $request)
+{
+    global $wpdb;
+    $table = $wpdb->prefix . 'apartment_cleaning_checklists';
+
+    $apartment_id = sanitize_text_field($request->get_param('apartment_id'));
+    $date = sanitize_text_field($request->get_param('date'));
+    if (empty($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        $date = current_time('Y-m-d');
+    }
+
+    if (empty($apartment_id)) {
+        return new WP_Error('missing_param', 'apartment_id is required.', ['status' => 400]);
+    }
+
+    $row = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM $table WHERE apartment_id = %s AND checklist_date = %s",
+        $apartment_id,
+        $date
+    ), ARRAY_A);
+
+    if (!$row) {
+        return rest_ensure_response(['found' => false]);
+    }
+
+    return rest_ensure_response([
+        'found' => true,
+        'id' => (int) $row['id'],
+        'apartment_id' => $row['apartment_id'],
+        'date' => $row['checklist_date'],
+        'towels_left_on_bed' => (int) $row['towels_left_on_bed'],
+        'code_set' => (bool) $row['code_set'],
+        'parking_pass_checked' => (bool) $row['parking_pass_checked'],
+        'water_filled' => (bool) $row['water_filled'],
+        // Safely check if fields exist in row before casting
+        'mirror_lights_blue' => isset($row['mirror_lights_blue']) ? (bool) $row['mirror_lights_blue'] : false,
+        'collected_parking_pass_start' => isset($row['collected_parking_pass_start']) ? (bool) $row['collected_parking_pass_start'] : false,
+        'submitted_at' => $row['submitted_at'],
+    ]);
+}
+
+function aa_list_cleaning_checklists(WP_REST_Request $request)
+{
+    global $wpdb;
+    $table = $wpdb->prefix . 'apartment_cleaning_checklists';
+
+    $apartment_id = sanitize_text_field($request->get_param('apartment_id'));
+    $limit = max(1, min(100, (int) ($request->get_param('limit') ?: 30)));
+
+    if (empty($apartment_id)) {
+        return new WP_Error('missing_param', 'apartment_id is required.', ['status' => 400]);
+    }
+
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM $table WHERE apartment_id = %s ORDER BY checklist_date DESC LIMIT %d",
+        $apartment_id,
+        $limit
+    ), ARRAY_A);
+
+    $out = array_map(function ($row) {
+        return [
+            'id' => (int) $row['id'],
+            'apartment_id' => $row['apartment_id'],
+            'date' => $row['checklist_date'],
+            'towels_left_on_bed' => (int) $row['towels_left_on_bed'],
+            'code_set' => (bool) $row['code_set'],
+            'parking_pass_checked' => (bool) $row['parking_pass_checked'],
+            'water_filled' => (bool) $row['water_filled'],
+            // Safely check if fields exist in row before casting
+            'mirror_lights_blue' => isset($row['mirror_lights_blue']) ? (bool) $row['mirror_lights_blue'] : false,
+            'collected_parking_pass_start' => isset($row['collected_parking_pass_start']) ? (bool) $row['collected_parking_pass_start'] : false,
+            'submitted_at' => $row['submitted_at'],
+        ];
+    }, $rows ?: []);
+
+    return rest_ensure_response($out);
 }

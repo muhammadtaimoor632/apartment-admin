@@ -24,7 +24,7 @@ class ApiService {
     required String apartmentId,
     required int rating,
   }) {
-    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/ratings/update');
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/ratings/update${_clientDateQuery()}');
     return http.post(
       uri,
       headers: _authHeaders,
@@ -135,7 +135,7 @@ class ApiService {
     required String remarks,
     String? base64Image,
   }) {
-    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/feedback');
+    final uri = Uri.parse('$_wordpressUrl$_apiNamespace/status/feedback${_clientDateQuery()}');
     return http.post(
       uri,
       headers: _authHeaders,
@@ -160,6 +160,7 @@ class ApiService {
     required String apartmentId,
     required Map<String, dynamic> data,
     DateTime? targetDate,
+    int rating = 0,
   }) async {
     try {
       final uri = Uri.parse(
@@ -168,6 +169,7 @@ class ApiService {
       final body = <String, dynamic>{
         'apartment_id': apartmentId,
         'date': _formatDate(targetDate ?? DateTime.now()),
+        if (rating > 0) 'rating': rating,
         ...data,
       };
       final response = await http.post(

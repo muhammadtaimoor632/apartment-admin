@@ -213,7 +213,18 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
               _remarksControllers[detail.id]!.text = detail.remarks;
             }
           }
+
+          // Clear cached checklists for collapsed cards so they fetch fresh next time they are expanded
+          _checklists.removeWhere((aptId, _) => !(_expandedCards[aptId] ?? false));
         });
+
+        // Forcefully refresh checklists for currently expanded cards
+        for (final aptId in _expandedCards.keys) {
+          if (_expandedCards[aptId] == true) {
+            _fetchChecklist(aptId);
+          }
+        }
+
         await _fetchStatusesFromServer();
       }
     } catch (e) {
@@ -473,17 +484,11 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     towelsController.dispose();
 
     // Upload the rating and feedback now
-    if (currentRating > 0) {
-      try {
-        await ApiService.updateCleaningRating(
-          apartmentId: apartment.id,
-          rating: currentRating,
-        );
-      } catch (_) {}
-    }
     await _saveFeedback(apartment.id, silent: true);
 
+    final existingData = _checklists[apartment.id] ?? {};
     final checklistData = {
+      ...existingData,
       'towels_left_on_bed': towelsCount,
       'code_set': codeSet,
       'parking_pass_checked': parkingPassChecked,
@@ -495,6 +500,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     final saved = await ApiService.saveCleaningChecklist(
       apartmentId: apartment.id,
       data: checklistData,
+      rating: currentRating,
     );
 
     if (!saved) {
@@ -504,14 +510,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
 
     if (mounted) {
       setState(() {
-        _checklists[apartment.id] = {
-          'towels_left_on_bed': towelsCount,
-          'code_set': codeSet,
-          'parking_pass_checked': parkingPassChecked,
-          'water_filled': waterFilled,
-          'mirror_lights_blue': mirrorLightsBlue,
-          'submitted_at': DateTime.now().toIso8601String(),
-        };
+        _checklists[apartment.id] = checklistData;
       });
     }
 
@@ -635,9 +634,12 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
       });
     }
 
+    final currentRating = _ratings[apartment.id] ?? 0;
+
     await ApiService.saveCleaningChecklist(
       apartmentId: apartment.id,
       data: updatedData,
+      rating: currentRating,
     );
 
     await _updateStatus(apartment.id, 'start');
@@ -649,6 +651,24 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     setState(() {
       _ratings[apartmentId] = newRating;
     });
+
+    try {
+      print('flutter: Attempting instant rating upload for $apartmentId: $newRating');
+      final response = await ApiService.updateCleaningRating(
+        apartmentId: apartmentId,
+        rating: newRating,
+      );
+      print('flutter: Instant rating response: ${response.statusCode} - ${response.body}');
+      
+      if (response.statusCode == 200) {
+        _showSnackBar('Rating uploaded to database successfully!', Colors.blue);
+      } else {
+        _showSnackBar('Failed to upload rating: HTTP ${response.statusCode}', Colors.red);
+      }
+    } catch (e) {
+      print('flutter: Instant rating error: $e');
+      _showSnackBar('Network error while uploading rating', Colors.red);
+    }
 
     // If rating is low (<=2), show feedback requirement hint
     if (newRating <= 2) {
@@ -852,6 +872,15 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
         remarks: remarks,
         base64Image: base64Image,
       );
+
+      if (currentRating > 0) {
+        try {
+          await ApiService.updateCleaningRating(
+            apartmentId: apartmentId,
+            rating: currentRating,
+          );
+        } catch (_) {}
+      }
 
       if (response.statusCode == 200) {
         if (!silent) _showSnackBar('Feedback saved successfully!', Colors.green);

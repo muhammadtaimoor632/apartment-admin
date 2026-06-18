@@ -51,6 +51,8 @@ function aa_create_cleaning_checklist_table()
         code_set              TINYINT(1)   NOT NULL DEFAULT 0,
         parking_pass_checked  TINYINT(1)   NOT NULL DEFAULT 0,
         water_filled          TINYINT(1)   NOT NULL DEFAULT 0,
+        mirror_lights_blue    TINYINT(1)   NOT NULL DEFAULT 0,
+        collected_parking_pass_start TINYINT(1) NOT NULL DEFAULT 0,
         submitted_at          DATETIME     DEFAULT NULL,
         created_at            DATETIME     DEFAULT CURRENT_TIMESTAMP,
         updated_at            DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -130,10 +132,19 @@ function aa_save_cleaning_checklist(WP_REST_Request $request)
     $code_set     = (bool) $request->get_param('code_set') ? 1 : 0;
     $parking_pass = (bool) $request->get_param('parking_pass_checked') ? 1 : 0;
     $water_filled = (bool) $request->get_param('water_filled') ? 1 : 0;
+    
+    // New fields
+    $mirror_lights = (bool) $request->get_param('mirror_lights_blue') ? 1 : 0;
+    $parking_start = (bool) $request->get_param('collected_parking_pass_start') ? 1 : 0;
 
     $submitted_raw = $request->get_param('submitted_at');
     $ts = !empty($submitted_raw) ? strtotime($submitted_raw) : false;
     $submitted_at = $ts ? gmdate('Y-m-d H:i:s', $ts) : current_time('mysql');
+
+    // Make sure we only insert columns that actually exist in the DB right now to prevent crashes
+    // if the table hasn't been upgraded yet!
+    $col_mirror = $wpdb->get_results("SHOW COLUMNS FROM $table LIKE 'mirror_lights_blue'");
+    $has_mirror = !empty($col_mirror);
 
     $data = [
         'apartment_id'         => $apartment_id,
@@ -145,6 +156,14 @@ function aa_save_cleaning_checklist(WP_REST_Request $request)
         'submitted_at'         => $submitted_at,
     ];
     $formats = ['%s', '%s', '%d', '%d', '%d', '%d', '%s'];
+
+    // Only try to save the new fields if the database has them
+    if ($has_mirror) {
+        $data['mirror_lights_blue'] = $mirror_lights;
+        $data['collected_parking_pass_start'] = $parking_start;
+        $formats[] = '%d';
+        $formats[] = '%d';
+    }
 
     $existing_id = $wpdb->get_var($wpdb->prepare(
         "SELECT id FROM $table WHERE apartment_id = %s AND checklist_date = %s",
@@ -205,6 +224,9 @@ function aa_get_cleaning_checklist(WP_REST_Request $request)
         'code_set'             => (bool) $row['code_set'],
         'parking_pass_checked' => (bool) $row['parking_pass_checked'],
         'water_filled'         => (bool) $row['water_filled'],
+        // Safely check if fields exist in row before casting
+        'mirror_lights_blue'   => isset($row['mirror_lights_blue']) ? (bool) $row['mirror_lights_blue'] : false,
+        'collected_parking_pass_start' => isset($row['collected_parking_pass_start']) ? (bool) $row['collected_parking_pass_start'] : false,
         'submitted_at'         => $row['submitted_at'],
     ]);
 }
@@ -236,6 +258,9 @@ function aa_list_cleaning_checklists(WP_REST_Request $request)
             'code_set'             => (bool) $row['code_set'],
             'parking_pass_checked' => (bool) $row['parking_pass_checked'],
             'water_filled'         => (bool) $row['water_filled'],
+            // Safely check if fields exist in row before casting
+            'mirror_lights_blue'   => isset($row['mirror_lights_blue']) ? (bool) $row['mirror_lights_blue'] : false,
+            'collected_parking_pass_start' => isset($row['collected_parking_pass_start']) ? (bool) $row['collected_parking_pass_start'] : false,
             'submitted_at'         => $row['submitted_at'],
         ];
     }, $rows ?: []);
