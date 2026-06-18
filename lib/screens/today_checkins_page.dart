@@ -1341,13 +1341,26 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                             .where((e) {
                               if (e.value == null || e.value.toString().isEmpty)
                                 return false;
-                              final lk = e.key.toLowerCase();
+                              final lk = e.key.toLowerCase().replaceAll(
+                                ' ',
+                                '',
+                              );
                               if (lk.contains('nonce') ||
                                   lk.contains('referer') ||
                                   lk.contains('token') ||
                                   lk.contains('hash') ||
                                   lk.contains('checkbox') ||
-                                  lk.contains('wphttp'))
+                                  lk.contains('wphttp') ||
+                                  (lk.contains('fluentform') &&
+                                      lk.contains('nonce')) ||
+                                  lk.contains('_wp_') ||
+                                  lk.contains('formid') ||
+                                  lk.contains('__') ||
+                                  lk.startsWith('utm') ||
+                                  lk.contains('parkingpassaggrement') ||
+                                  lk.contains('fdppostid') ||
+                                  lk.contains('fdpformid') ||
+                                  lk.contains('fdp'))
                                 return false;
                               return true;
                             })
