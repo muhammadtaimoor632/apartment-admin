@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'dart:async';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:wild_atlantic_hub/models/booking_event.dart';
 import 'package:wild_atlantic_hub/widgets/galway_weather_widget.dart';
@@ -1360,6 +1362,19 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                                   lk.contains('code') ||
                                   lk.contains('pin') ||
                                   lk.contains('door');
+
+                              final normalizedLk = lk.replaceAll(RegExp(r'[^a-z0-9]'), '');
+                              final normalizedKey = e.key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+                              if (normalizedLk.contains('dynamicpagelink') || 
+                                  normalizedKey.contains('dynamicpagelink')) {
+                                return _dynamicPageLinkWidget(
+                                  friendlyLabel,
+                                  e.value.toString(),
+                                  context,
+                                );
+                              }
+
                               return _labelValue(
                                 isSecret ? '🔐 $friendlyLabel' : friendlyLabel,
                                 e.value.toString(),
@@ -1394,6 +1409,76 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
           Text(
             value,
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dynamicPageLinkWidget(String label, String url, BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[500],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final uri = Uri.tryParse(url);
+                    if (uri != null && await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    } else {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not launch URL')),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: const Text('Open Link'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF8CB2A4),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: url));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('URL copied to clipboard')),
+                  );
+                },
+                icon: const Icon(Icons.copy, size: 18),
+                label: const Text('Copy'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF8CB2A4),
+                  side: const BorderSide(color: Color(0xFF8CB2A4)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                ),
+              ),
+            ],
           ),
         ],
       ),

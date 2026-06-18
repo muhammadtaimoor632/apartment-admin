@@ -282,10 +282,23 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
 
 
   Future<void> _showFinishCleaningChecklist(Apartment apartment) async {
+    final int currentRating = _ratings[apartment.id] ?? 0;
+    final String remarks = _remarksControllers[apartment.id]?.text ?? '';
+
+    // Validate: if rating is low (<=2), remarks are required
+    if (currentRating > 0 && currentRating <= 2 && remarks.trim().isEmpty) {
+      _showSnackBar(
+        'Remarks are required for ratings of 2 stars or below.',
+        Colors.orange,
+      );
+      return;
+    }
+
     final towelsController = TextEditingController(text: '0');
     bool codeSet = false;
     bool parkingPassChecked = false;
     bool waterFilled = false;
+    bool mirrorLightsBlue = false;
 
     final bool? submitted = await showDialog<bool>(
       context: context,
@@ -419,6 +432,12 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
                       value: waterFilled,
                       onChanged: (v) => setLocalState(() => waterFilled = v),
                     ),
+                    const SizedBox(height: 8),
+                    _buildChecklistTile(
+                      label: 'Mirror lights are blue',
+                      value: mirrorLightsBlue,
+                      onChanged: (v) => setLocalState(() => mirrorLightsBlue = v),
+                    ),
                   ],
                 ),
               ),
@@ -453,11 +472,23 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     final towelsCount = int.tryParse(towelsController.text) ?? 0;
     towelsController.dispose();
 
+    // Upload the rating and feedback now
+    if (currentRating > 0) {
+      try {
+        await ApiService.updateCleaningRating(
+          apartmentId: apartment.id,
+          rating: currentRating,
+        );
+      } catch (_) {}
+    }
+    await _saveFeedback(apartment.id, silent: true);
+
     final checklistData = {
       'towels_left_on_bed': towelsCount,
       'code_set': codeSet,
       'parking_pass_checked': parkingPassChecked,
       'water_filled': waterFilled,
+      'mirror_lights_blue': mirrorLightsBlue,
       'submitted_at': DateTime.now().toIso8601String(),
     };
 
@@ -478,6 +509,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
           'code_set': codeSet,
           'parking_pass_checked': parkingPassChecked,
           'water_filled': waterFilled,
+          'mirror_lights_blue': mirrorLightsBlue,
           'submitted_at': DateTime.now().toIso8601String(),
         };
       });
@@ -558,58 +590,16 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
   Future<void> _updateRating(String apartmentId, int newRating) async {
     if (!mounted) return;
 
-    final originalRating = _ratings[apartmentId];
     setState(() {
-      _isLoading[apartmentId] = true;
       _ratings[apartmentId] = newRating;
     });
 
-    try {
-      final response = await ApiService.updateCleaningRating(
-        apartmentId: apartmentId,
-        rating: newRating,
+    // If rating is low (<=2), show feedback requirement hint
+    if (newRating <= 2) {
+      _showSnackBar(
+        'Low rating — please add remarks below before finishing.',
+        Colors.orange,
       );
-
-      if (response.statusCode != 200) {
-        final responseBody = json.decode(response.body);
-        final errorMessage =
-            responseBody['message'] ?? 'An unknown error occurred.';
-        _showSnackBar('Error: $errorMessage', Colors.red);
-        if (mounted) {
-          setState(() {
-            _ratings[apartmentId] = originalRating!;
-          });
-        }
-      } else {
-        _showSnackBar('Rating updated!', Colors.green);
-        // Update the last rated timestamp immediately
-        if (mounted) {
-          setState(() {
-            _lastRatedAts[apartmentId] =
-                DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now());
-          });
-        }
-        // If rating is low (<=2), show feedback requirement hint
-        if (newRating <= 2) {
-          _showSnackBar(
-            'Low rating — please add remarks below.',
-            Colors.orange,
-          );
-        }
-      }
-    } catch (e) {
-      _showSnackBar('Failed to connect. Check your connection.', Colors.red);
-      if (mounted) {
-        setState(() {
-          _ratings[apartmentId] = originalRating!;
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading[apartmentId] = false;
-        });
-      }
     }
   }
 
@@ -773,7 +763,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     );
   }
 
-  Future<void> _saveFeedback(String apartmentId) async {
+  Future<void> _saveFeedback(String apartmentId, {bool silent = false}) async {
     if (!mounted) return;
 
     final int currentRating = _ratings[apartmentId] ?? 0;
@@ -781,10 +771,12 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
 
     // Validate: if rating is low (<=2), remarks are required
     if (currentRating > 0 && currentRating <= 2 && remarks.trim().isEmpty) {
-      _showSnackBar(
-        'Remarks are required for ratings of 2 stars or below.',
-        Colors.orange,
-      );
+      if (!silent) {
+        _showSnackBar(
+          'Remarks are required for ratings of 2 stars or below.',
+          Colors.orange,
+        );
+      }
       return;
     }
 
@@ -806,7 +798,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
       );
 
       if (response.statusCode == 200) {
-        _showSnackBar('Feedback saved successfully!', Colors.green);
+        if (!silent) _showSnackBar('Feedback saved successfully!', Colors.green);
         // Try to extract uploaded image URL from response
         try {
           final responseBody = json.decode(response.body);
@@ -824,10 +816,10 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
         final responseBody = json.decode(response.body);
         final errorMessage =
             responseBody['message'] ?? 'An unknown error occurred.';
-        _showSnackBar('Error: $errorMessage', Colors.red);
+        if (!silent) _showSnackBar('Error: $errorMessage', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('Failed to connect. Check your connection.', Colors.red);
+      if (!silent) _showSnackBar('Failed to connect. Check your connection.', Colors.red);
     } finally {
       if (mounted) {
         setState(() {
@@ -1120,6 +1112,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
     final parkingPass =
         data['parking_pass_checked'] == true || data['parking_pass_checked'] == 1;
     final waterFilled = data['water_filled'] == true || data['water_filled'] == 1;
+    final mirrorLightsBlue = data['mirror_lights_blue'] == true || data['mirror_lights_blue'] == 1;
 
     Widget row(IconData icon, String label, Widget trailing) {
       return Padding(
@@ -1197,6 +1190,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
             row(Icons.lock_outline, 'Code set', yesNo(codeSet)),
             row(Icons.local_parking, 'Parking pass in place', yesNo(parkingPass)),
             row(Icons.water_drop_outlined, 'Water filled', yesNo(waterFilled)),
+            row(Icons.lightbulb_outline, 'Mirror lights are blue', yesNo(mirrorLightsBlue)),
           ],
         ),
       ),
@@ -1449,24 +1443,6 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
                       borderRadius: BorderRadius.circular(8)),
                   padding: const EdgeInsets.symmetric(vertical: 8),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: _isLoading[apartmentId] == true
-                    ? null
-                    : () => _saveFeedback(apartmentId),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF8CB2A4),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  elevation: 0,
-                ),
-                child:
-                    const Text('Save Feedback', style: TextStyle(fontSize: 12)),
               ),
             ),
           ],
