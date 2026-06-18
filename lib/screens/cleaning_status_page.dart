@@ -1102,8 +1102,13 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
   }
 
   Widget _buildChecklistDisplay(String apartmentId) {
-    final data = _checklists[apartmentId];
-    if (data == null) return const SizedBox.shrink();
+    final data = _checklists[apartmentId] ?? {
+      'towels_left_on_bed': 0,
+      'code_set': false,
+      'parking_pass_checked': false,
+      'water_filled': false,
+      'mirror_lights_blue': false,
+    };
 
     final towels = (data['towels_left_on_bed'] is int)
         ? data['towels_left_on_bed'] as int
