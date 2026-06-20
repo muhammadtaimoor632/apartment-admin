@@ -1140,6 +1140,30 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                               letterSpacing: -0.1,
                             ),
                           ),
+                          if (event.formData.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.person,
+                                    size: 13,
+                                    color: Colors.grey[400],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      _getGuestName(event.formData),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey[600],
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           if (!isHosting) ...() {
                             final checkinNights = DateTime(event.end.year, event.end.month, event.end.day).difference(DateTime(event.start.year, event.start.month, event.start.day)).inDays;
                             return [
@@ -1231,6 +1255,24 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
         ),
       );
     }
+  }
+
+  String _getGuestName(Map<String, dynamic> formData) {
+    for (final key in formData.keys) {
+      final lk = key.toLowerCase();
+      if (lk.contains('name') && !lk.contains('last')) {
+        final val = formData[key];
+        if (val != null && val.toString().isNotEmpty) return val.toString();
+      }
+    }
+    for (final key in formData.keys) {
+      final lk = key.toLowerCase();
+      if (lk.contains('name')) {
+        final val = formData[key];
+        if (val != null && val.toString().isNotEmpty) return val.toString();
+      }
+    }
+    return 'Guest details available';
   }
   Widget _buildStatusBadge(String status, {bool isOverdue = false, bool isCheckoutToday = false}) {
     String displayStatus;
