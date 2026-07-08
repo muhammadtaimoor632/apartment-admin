@@ -358,6 +358,36 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     return entries;
   }
 
+  /// Past dates pe: woh bookings jo us date tak checkout ho chuki thi
+  /// (checkout == targetDate ya checkout < targetDate aur checkin bhi <= targetDate)
+  List<_BookingEntry> get _pastStays {
+    final targetDate = _selectedDate;
+    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    // Sirf past dates ke liye show karo
+    if (!targetDate.isBefore(today)) return [];
+
+    final entries = <_BookingEntry>[];
+    for (final cal in _calendars) {
+      for (final event in cal.events) {
+        if (event.isBlocked) continue;
+        final start = DateTime(event.start.year, event.start.month, event.start.day);
+        final end = DateTime(event.end.year, event.end.month, event.end.day);
+
+        // Booking us selected date pe ya pehle checkout hui
+        // aur checkin bhi selected date pe ya pehle thi
+        final checkoutOnOrBefore = !end.isAfter(targetDate);
+        final checkinOnOrBefore = !start.isAfter(targetDate);
+
+        if (checkinOnOrBefore && checkoutOnOrBefore) {
+          entries.add(_BookingEntry(calendarName: cal.name, event: event));
+        }
+      }
+    }
+    // Sort by checkout date descending (most recent first)
+    entries.sort((a, b) => b.event.end.compareTo(a.event.end));
+    return entries;
+  }
+
   List<_BookingEntry> get _roomsToClean {
     final targetDate = _selectedDate;
     final entries = <_BookingEntry>[];
@@ -583,8 +613,19 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     final checkins = _checkinsToday;
     final hosting = _currentlyHosting;
     final cleaning = _roomsToClean;
+    final past = _pastStays;
 
+    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    final isPastDate = _selectedDate.isBefore(today);
 
+    // Past date pe: checkins + hosting + pastStays. Aaj ke liye: checkins + hosting + cleaning
+    // Overlap avoid karne ke liye: pastStays mein se woh nikaalo jo checkins ya hosting mein already hain
+    final checkinKeys = checkins.map((e) => '${e.event.room}|${e.event.start}').toSet();
+    final hostingKeys = hosting.map((e) => '${e.event.room}|${e.event.start}').toSet();
+    final filteredPast = past.where((e) {
+      final key = '${e.event.room}|${e.event.start}';
+      return !checkinKeys.contains(key) && !hostingKeys.contains(key);
+    }).toList();
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -614,7 +655,18 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
           ),
           const SizedBox(height: 32),
         ],
-        if (cleaning.isNotEmpty) ...[
+        // Past dates pe: already checkout ho chuki bookings
+        if (isPastDate && filteredPast.isNotEmpty) ...[
+          _buildSectionHeader(
+            'Past Stays',
+            Icons.history,
+            const Color(0xFF9E9E9E),
+            filteredPast.length,
+          ),
+          ...filteredPast.map((e) => _buildCard(e, isCheckout: false, isPastStay: true)),
+          const SizedBox(height: 32),
+        ],
+        if (!isPastDate && cleaning.isNotEmpty) ...[
           _buildSectionHeader(
             'Cleaning',
             Icons.cleaning_services,
@@ -622,6 +674,17 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
             cleaning.length,
           ),
           _buildCleaningNotes(cleaning),
+          ...cleaning.map((e) => _buildCard(e, isCheckout: true)),
+          const SizedBox(height: 32),
+        ],
+        // Past date pe bhi cleaning section (read-only historical view)
+        if (isPastDate && cleaning.isNotEmpty) ...[
+          _buildSectionHeader(
+            'Cleaning (on that day)',
+            Icons.cleaning_services,
+            const Color(0xFFBDBDBD),
+            cleaning.length,
+          ),
           ...cleaning.map((e) => _buildCard(e, isCheckout: true)),
           const SizedBox(height: 32),
         ],
@@ -854,6 +917,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     _BookingEntry entry, {
     required bool isCheckout,
     bool isHosting = false,
+    bool isPastStay = false,
   }) {
     if (isCheckout) {
       final String subtitle;
@@ -1068,7 +1132,12 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
   final event = entry.event;
       final arrivalTime = _getArrivalTime(event.formData) ?? '15:00';
       String displayTime;
-      if (isHosting) {
+      if (isPastStay) {
+        // Past stay: checkout date dikhao
+        final endDate = DateTime(event.end.year, event.end.month, event.end.day);
+        final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        displayTime = 'CO: ${endDate.day} ${months[endDate.month - 1]}';
+      } else if (isHosting) {
         final referenceDate = DateTime(
           _selectedDate.year,
           _selectedDate.month,
@@ -1090,7 +1159,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
       } else {
         displayTime = arrivalTime;
       }
-      final timeIcon = isHosting ? Icons.logout : Icons.access_time;
+      final timeIcon = isPastStay ? Icons.event_available : (isHosting ? Icons.logout : Icons.access_time);
       final specialReq = _getSpecialRequestString(
         event.formData,
         propertyName: event.room,
@@ -1197,7 +1266,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF8CB2A4).withOpacity(0.12),
+                          color: isPastStay
+                              ? Colors.grey[200]!
+                              : const Color(0xFF8CB2A4).withOpacity(0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
@@ -1206,15 +1277,19 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
                             Icon(
                               timeIcon,
                               size: 16,
-                              color: const Color(0xFF5A8B7B),
+                              color: isPastStay
+                                  ? Colors.grey[500]!
+                                  : const Color(0xFF5A8B7B),
                             ),
                             const SizedBox(width: 4),
                             Text(
                               displayTime,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 13,
-                                color: Color(0xFF4A7A6D),
+                                color: isPastStay
+                                    ? Colors.grey[600]!
+                                    : const Color(0xFF4A7A6D),
                               ),
                             ),
                           ],
@@ -1278,20 +1353,21 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     String displayStatus;
     Color statusColor;
 
+    final lowerStatus = status.toLowerCase();
+
     if (isOverdue) {
       displayStatus = 'Overdue';
       statusColor = Colors.red[600]!;
+    } else if (lowerStatus == 'in_progress') {
+      displayStatus = 'In Progress';
+      statusColor = Colors.blue[600]!;
     } else if (isCheckoutToday) {
       displayStatus = 'Needs Cleaning';
       statusColor = Colors.amber[700]!;
     } else {
-      final lowerStatus = status.toLowerCase();
       if (lowerStatus == 'cleaned') {
         displayStatus = 'Cleaned';
         statusColor = Colors.green[600]!;
-      } else if (lowerStatus == 'in_progress') {
-        displayStatus = 'In Progress';
-        statusColor = Colors.blue[600]!;
       } else {
         displayStatus = 'Not Cleaned';
         statusColor = Colors.grey[500]!;
