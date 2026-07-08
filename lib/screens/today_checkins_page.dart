@@ -443,8 +443,30 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
           bool isOverdue = false;
           bool isCheckoutToday = false;
 
+          if (targetDate.isBefore(todayReal)) {
+             // We are looking at a past date. 
+             // Was it cleaned on or before the targetDate?
+             final lastCleanedStr = _getLastCleanedDate(roomName);
+             if (lastCleanedStr != null && lastCleanedStr.isNotEmpty) {
+               final lastCleanedDate = DateTime.tryParse(lastCleanedStr);
+               if (lastCleanedDate != null) {
+                 final lastCleanedDay = DateTime(lastCleanedDate.year, lastCleanedDate.month, lastCleanedDate.day);
+                 if (lastCleanedDay.isAfter(targetDate)) {
+                   // It was cleaned AFTER the target date, so on the target date it was NOT cleaned yet.
+                   effectiveIsCleaned = false;
+                 }
+               }
+             }
+          }
+
           if (lastCheckoutEvent != null) {
             final checkoutDate = DateTime(lastCheckoutEvent.end.year, lastCheckoutEvent.end.month, lastCheckoutEvent.end.day);
+
+            // Time-travel / Future-prediction logic for cleaning status
+            if (checkoutDate.isAfter(todayReal)) {
+              // Checkout hasn't happened yet in reality, so it can't be cleaned for this checkout.
+              effectiveIsCleaned = false;
+            }
 
             if (checkoutDate.isAfter(targetDate)) {
               // Future checkout relative to selected date — not yet due for cleaning
@@ -455,15 +477,15 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
               isOverdue = false;
             } else if (checkoutDate.isBefore(targetDate)) {
               // Past checkout relative to selected date — check if cleaning was done by this date
-              bool wasCleaned = effectiveIsCleaned; // targetDate's status says cleaned
+              bool wasCleaned = effectiveIsCleaned; // targetDate's status
               if (!wasCleaned) {
                 final lastCleanedStr = _getLastCleanedDate(roomName);
                 if (lastCleanedStr != null && lastCleanedStr.isNotEmpty) {
                   final lastCleaned = DateTime.tryParse(lastCleanedStr);
                   if (lastCleaned != null) {
                     final lastCleanedDay = DateTime(lastCleaned.year, lastCleaned.month, lastCleaned.day);
-                    // Cleaned on or after checkout date → not overdue
-                    wasCleaned = !lastCleanedDay.isBefore(checkoutDate);
+                    // Cleaned on or after checkout date AND on or before target date → not overdue
+                    wasCleaned = !lastCleanedDay.isBefore(checkoutDate) && !lastCleanedDay.isAfter(targetDate);
                   }
                 }
               }
