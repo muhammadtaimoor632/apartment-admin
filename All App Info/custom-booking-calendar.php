@@ -1049,8 +1049,11 @@ function cbc_get_merged_events($cal_id)
             }
         }
 
-        // 2-Pre. Restore true check-in dates for ongoing bookings cut off by PriceLabs today-only feed.
-        $today_str = date('Y-m-d');
+        // 2-Pre. Lock ongoing bookings (Irish Time) & Restore check-in dates cut off by PriceLabs feed.
+        $tz = new DateTimeZone('Europe/Dublin');
+        $dt = new DateTime("now", $tz);
+        $today_str = $dt->format('Y-m-d');
+        
         if (!empty($clean['pricelabs'])) {
             $active_db = $wpdb->get_results($wpdb->prepare(
                 "SELECT * FROM $db_table WHERE cal_id = %s AND room_id = %s AND platform = 'pricelabs' AND status = 'active'",
@@ -1058,20 +1061,20 @@ function cbc_get_merged_events($cal_id)
             ));
             
             foreach ($clean['pricelabs'] as &$fresh) {
-                if (!empty($fresh['is_continuation']) && $fresh['start'] === $today_str) {
-                    $best_match = null;
-                    foreach ($active_db as $stored_event) {
-                        if (strtotime($stored_event->end_date) >= strtotime($today_str) && 
-                            strtotime($stored_event->start_date) <= strtotime($today_str)) {
-                            $best_match = $stored_event;
-                            break;
-                        }
+                $best_match = null;
+                foreach ($active_db as $stored_event) {
+                    // Lock condition: if a DB booking is already ongoing/started, and the new slot falls inside it.
+                    if (strtotime($stored_event->start_date) <= strtotime($fresh['start']) && 
+                        strtotime($stored_event->end_date) > strtotime($fresh['start'])) {
+                        $best_match = $stored_event;
+                        break;
                     }
-                    if ($best_match) {
-                        $fresh['start']  = $best_match->start_date;
-                        $fresh['nights'] = (int)round((strtotime($fresh['end']) - strtotime($fresh['start'])) / 86400);
-                        $fresh['uid']    = md5('pricelabs' . $fresh['start'] . $fresh['end']);
-                    }
+                }
+                if ($best_match) {
+                    // Restore original check-in date to prevent overriding with a shorter slot
+                    $fresh['start']  = $best_match->start_date;
+                    $fresh['nights'] = (int)round((strtotime($fresh['end']) - strtotime($fresh['start'])) / 86400);
+                    $fresh['uid']    = md5('pricelabs' . $fresh['start'] . $fresh['end']);
                 }
             }
             unset($fresh);
@@ -1109,8 +1112,11 @@ function cbc_get_merged_events($cal_id)
             ));
             
             foreach ($missing_active as $missing) {
-                // If it's a future or ongoing stay (excluding today as checkout day), it's cancelled
-                if (strtotime($missing->end_date) > strtotime($today_str)) {
+                // User requested Lock: If booking check-in has started, do not cancel it.
+                $is_locked = (strtotime($missing->start_date) <= strtotime($today_str) && strtotime($missing->end_date) > strtotime($today_str));
+
+                // If it's a future stay, it's cancelled. But skip if it's locked (ongoing)
+                if (!$is_locked && strtotime($missing->end_date) > strtotime($today_str)) {
                     $wpdb->update(
                         $db_table,
                         array('status' => 'cancelled'),

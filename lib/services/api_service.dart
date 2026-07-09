@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -416,7 +417,10 @@ class ApiService {
         return (data['note'] ?? '') as String;
       }
       return '';
+    } on SocketException {
+      return '';
     } catch (e) {
+      if (e.toString().contains('SocketException')) return '';
       print('Network error fetching admin note: $e');
       return '';
     }
@@ -451,7 +455,10 @@ class ApiService {
         return (data['note'] ?? '') as String;
       }
       return '';
+    } on SocketException {
+      return '';
     } catch (e) {
+      if (e.toString().contains('SocketException')) return '';
       print('Network error fetching global inventory note: $e');
       return '';
     }

@@ -157,7 +157,9 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.paused) {
+      _refreshTimer?.cancel();
+    } else if (state == AppLifecycleState.resumed) {
       _checkDateChange();
       // Refresh in the background and keep the previously loaded data on
       // screen until the new response arrives. Do NOT reassign
@@ -166,6 +168,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
       // would break lookups and briefly mark every room as overdue.
       _fetchData(silent: _calendars.isNotEmpty);
       _notepadKey.currentState?.fetchNotes();
+      _startRefreshTimer();
     }
   }
 
