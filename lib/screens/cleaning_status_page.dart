@@ -2029,8 +2029,8 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
           if (ev.isBlocked) continue;
           if (!_isRoomMatched(ev.room, apt.name)) continue;
 
-          final evEnd = DateTime(ev.end.year, ev.end.month, ev.end.day);
-          if (!evEnd.isBefore(start) && evEnd.isBefore(end)) {
+          final evStart = DateTime(ev.start.year, ev.start.month, ev.start.day);
+          if (!evStart.isBefore(start) && evStart.isBefore(end)) {
             cleanings++;
           }
         }

@@ -1107,7 +1107,7 @@ function cbc_get_merged_events($cal_id)
                 continue;
 
             $missing_active = $wpdb->get_results($wpdb->prepare(
-                "SELECT id, start_date, end_date FROM $db_table WHERE cal_id = %s AND room_id = %s AND platform = %s AND status = 'active' AND last_seen < %s",
+                "SELECT id, start_date, end_date FROM $db_table WHERE cal_id = %s AND room_id = %s AND platform = %s AND status = 'active' AND last_seen < %s AND summary != 'Manual Entry'",
                 $cal_id, $room_id, $platform, $current_time
             ));
             
