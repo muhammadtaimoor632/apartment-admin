@@ -1800,7 +1800,7 @@ class _AdminNotepadState extends State<_AdminNotepad> {
               Text(
                 'Notes',
                 style: TextStyle(
-                  fontSize: _isEditing ? 14 : 12,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: Colors.grey[500],
                 ),
@@ -1827,107 +1827,95 @@ class _AdminNotepadState extends State<_AdminNotepad> {
           ),
           const SizedBox(height: 8),
           
-          if (_items.isEmpty && !_isEditing)
-            Text(
-              'Tap the pencil icon to add notes...',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[400],
-                fontStyle: FontStyle.italic,
-                height: 1.4,
-              ),
-            )
-          else
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _items.length,
-              padding: EdgeInsets.zero,
-              itemBuilder: (context, index) {
-                final item = _items[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 4.0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: Checkbox(
-                          value: item.isChecked,
-                          onChanged: (val) => _toggleItem(index, val),
-                          activeColor: const Color(0xFF5A8B7B),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                        ),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _items.length,
+            padding: EdgeInsets.zero,
+            itemBuilder: (context, index) {
+              final item = _items[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: item.isChecked,
+                        onChanged: (val) => _toggleItem(index, val),
+                        activeColor: const Color(0xFF5A8B7B),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _isEditing
-                            ? TextFormField(
-                                initialValue: item.text,
-                                decoration: const InputDecoration(
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.symmetric(vertical: 8),
-                                  border: InputBorder.none,
-                                ),
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black87,
-                                  decoration: item.isChecked ? TextDecoration.lineThrough : null,
-                                ),
-                                onChanged: (val) => _updateItemText(index, val),
-                              )
-                            : Text(
-                                item.text,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: item.isChecked ? Colors.grey : Colors.black87,
-                                  decoration: item.isChecked ? TextDecoration.lineThrough : null,
-                                ),
-                              ),
-                      ),
-                      if (_isEditing)
-                        InkWell(
-                          onTap: () => _removeItem(index),
-                          child: const Padding(
-                            padding: EdgeInsets.all(4.0),
-                            child: Icon(Icons.close, size: 16, color: Colors.red),
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-            
-          if (_isEditing)
-            Padding(
-              padding: const EdgeInsets.only(top: 8.0),
-              child: Row(
-                children: [
-                  const SizedBox(width: 4),
-                  const Icon(Icons.add, size: 20, color: Colors.grey),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _newItemCtrl,
-                      decoration: const InputDecoration(
-                        hintText: 'Add a new note...',
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 8),
-                        border: InputBorder.none,
-                      ),
-                      style: const TextStyle(fontSize: 14),
-                      onSubmitted: _addItem,
                     ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _isEditing
+                          ? TextFormField(
+                              initialValue: item.text,
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(vertical: 8),
+                                border: InputBorder.none,
+                              ),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.black87,
+                                decoration: item.isChecked ? TextDecoration.lineThrough : null,
+                              ),
+                              onChanged: (val) => _updateItemText(index, val),
+                            )
+                          : Text(
+                              item.text,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: item.isChecked ? Colors.grey : Colors.black87,
+                                decoration: item.isChecked ? TextDecoration.lineThrough : null,
+                              ),
+                            ),
+                    ),
+                    if (_isEditing)
+                      InkWell(
+                        onTap: () => _removeItem(index),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4.0),
+                          child: Icon(Icons.close, size: 16, color: Colors.red),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+            
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Row(
+              children: [
+                const SizedBox(width: 4),
+                const Icon(Icons.add, size: 20, color: Colors.grey),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _newItemCtrl,
+                    decoration: const InputDecoration(
+                      hintText: 'Add a new note...',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      border: InputBorder.none,
+                    ),
+                    style: const TextStyle(fontSize: 14),
+                    onSubmitted: _addItem,
                   ),
-                  TextButton(
-                    onPressed: () => _addItem(_newItemCtrl.text),
-                    child: const Text('Add', style: TextStyle(color: Color(0xFF5A8B7B))),
-                  ),
-                ],
-              ),
+                ),
+                TextButton(
+                  onPressed: () => _addItem(_newItemCtrl.text),
+                  child: const Text('Add', style: TextStyle(color: Color(0xFF5A8B7B))),
+                ),
+              ],
             ),
+          ),
         ],
       ),
     );
