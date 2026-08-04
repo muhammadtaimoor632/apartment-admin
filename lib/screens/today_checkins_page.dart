@@ -393,6 +393,51 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
 
   List<_BookingEntry> get _roomsToClean {
     final targetDate = _selectedDate;
+    final todayReal = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    final isToday = targetDate.isAtSameMomentAs(todayReal);
+
+    if (!isToday) {
+      final entries = <_BookingEntry>[];
+      for (final cal in _calendars) {
+        for (final event in cal.events) {
+          if (event.isBlocked) continue;
+          final end = DateTime(event.end.year, event.end.month, event.end.day);
+          if (end.isAtSameMomentAs(targetDate)) {
+            final status = _getCleaningStatus(event.room);
+            final isCleaned = status.toLowerCase() == 'cleaned';
+            
+            bool effectiveIsCleaned = isCleaned;
+            if (targetDate.isBefore(todayReal)) {
+              final lastCleanedStr = _getLastCleanedDate(event.room);
+              if (lastCleanedStr != null && lastCleanedStr.isNotEmpty) {
+                final lastCleanedDate = DateTime.tryParse(lastCleanedStr);
+                if (lastCleanedDate != null) {
+                  final lastCleanedDay = DateTime(lastCleanedDate.year, lastCleanedDate.month, lastCleanedDate.day);
+                  if (lastCleanedDay.isAfter(targetDate)) {
+                    effectiveIsCleaned = false;
+                  }
+                }
+              }
+            } else {
+              effectiveIsCleaned = false;
+            }
+
+            entries.add(
+              _BookingEntry(
+                calendarName: cal.name,
+                event: event,
+                isCompleted: effectiveIsCleaned,
+                isOverdue: false,
+                isCheckoutToday: true,
+                cleaningStatus: effectiveIsCleaned ? 'cleaned' : 'not_cleaned',
+              ),
+            );
+          }
+        }
+      }
+      return entries;
+    }
+
     final entries = <_BookingEntry>[];
 
     for (final cal in _calendars) {
@@ -641,17 +686,55 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
     final past = _pastStays;
 
     final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    final isToday = _selectedDate.isAtSameMomentAs(today);
     final isPastDate = _selectedDate.isBefore(today);
 
-    // Past date pe: checkins + hosting + pastStays. Aaj ke liye: checkins + hosting + cleaning
-    // Overlap avoid karne ke liye: pastStays mein se woh nikaalo jo checkins ya hosting mein already hain
-    final checkinKeys = checkins.map((e) => '${e.event.room}|${e.event.start}').toSet();
-    final hostingKeys = hosting.map((e) => '${e.event.room}|${e.event.start}').toSet();
-    final filteredPast = past.where((e) {
-      final key = '${e.event.room}|${e.event.start}';
-      return !checkinKeys.contains(key) && !hostingKeys.contains(key);
-    }).toList();
+    if (isToday) {
+      return ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        children: [
+          _buildDateSelector(),
+          const GalwayWeatherWidget(),
+          _AdminNotepad(key: _notepadKey),
+          if (checkins.isNotEmpty) ...[
+            _buildSectionHeader(
+              "Today's Checkins",
+              Icons.flight_land,
+              const Color(0xFF4CAF50),
+              checkins.length,
+            ),
+            ...checkins.map((e) => _buildCard(e, isCheckout: false)),
+            const SizedBox(height: 32),
+          ],
+          if (hosting.isNotEmpty) ...[
+            _buildSectionHeader(
+              'Currently Hosting',
+              Icons.hotel,
+              const Color(0xFF2196F3),
+              hosting.length,
+            ),
+            ...hosting.map(
+              (e) => _buildCard(e, isCheckout: false, isHosting: true),
+            ),
+            const SizedBox(height: 32),
+          ],
+          if (cleaning.isNotEmpty) ...[
+            _buildSectionHeader(
+              'Cleaning',
+              Icons.cleaning_services,
+              const Color(0xFFFF9800),
+              cleaning.length,
+            ),
+            _buildCleaningNotes(cleaning),
+            ...cleaning.map((e) => _buildCard(e, isCheckout: true)),
+            const SizedBox(height: 32),
+          ],
+        ],
+      );
+    }
 
+    // Past or Future Dates logic:
+    // Only display: Checkins, Currently Hosting, and Cleaning (which are that day's checkouts)
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       children: [
@@ -660,7 +743,7 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
         _AdminNotepad(key: _notepadKey),
         if (checkins.isNotEmpty) ...[
           _buildSectionHeader(
-            '${_getDateHeader() == "Today" ? "Today's" : _getDateHeader()} Checkins',
+            '${_getDateHeader()} Checkins',
             Icons.flight_land,
             const Color(0xFF4CAF50),
             checkins.length,
@@ -680,34 +763,11 @@ class _TodayCheckinsPageState extends State<TodayCheckinsPage> with WidgetsBindi
           ),
           const SizedBox(height: 32),
         ],
-        // Past dates pe: already checkout ho chuki bookings
-        if (isPastDate && filteredPast.isNotEmpty) ...[
+        if (cleaning.isNotEmpty) ...[
           _buildSectionHeader(
-            'Past Stays',
-            Icons.history,
-            const Color(0xFF9E9E9E),
-            filteredPast.length,
-          ),
-          ...filteredPast.map((e) => _buildCard(e, isCheckout: false, isPastStay: true)),
-          const SizedBox(height: 32),
-        ],
-        if (!isPastDate && cleaning.isNotEmpty) ...[
-          _buildSectionHeader(
-            'Cleaning',
+            isPastDate ? 'Cleaning (on that day)' : 'Cleaning',
             Icons.cleaning_services,
-            const Color(0xFFFF9800),
-            cleaning.length,
-          ),
-          _buildCleaningNotes(cleaning),
-          ...cleaning.map((e) => _buildCard(e, isCheckout: true)),
-          const SizedBox(height: 32),
-        ],
-        // Past date pe bhi cleaning section (read-only historical view)
-        if (isPastDate && cleaning.isNotEmpty) ...[
-          _buildSectionHeader(
-            'Cleaning (on that day)',
-            Icons.cleaning_services,
-            const Color(0xFFBDBDBD),
+            isPastDate ? const Color(0xFFBDBDBD) : const Color(0xFFFF9800),
             cleaning.length,
           ),
           ...cleaning.map((e) => _buildCard(e, isCheckout: true)),
