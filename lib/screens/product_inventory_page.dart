@@ -20,7 +20,6 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
     _dataFuture = _fetchData();
   }
 
-<<<<<<< Updated upstream
   Future<(List<CleaningDetails>, List<InventoryItem>)> _fetchData() async {
     // Use Future.wait to fetch both lists in parallel for efficiency
     final results = await Future.wait([
@@ -31,44 +30,6 @@ class _ProductInventoryPageState extends State<ProductInventoryPage> {
       results[0] as List<CleaningDetails>,
       results[1] as List<InventoryItem>,
     );
-=======
-  Future<void> _fetchNote() async {
-    final note = await ApiService.fetchGlobalInventoryNote();
-    if (mounted) {
-      setState(() {
-        _currentNote = note;
-      });
-    }
-  }
-
-  Future<(List<Map<String, dynamic>>, Map<String, int>, Map<String, bool>)> _fetchData() async {
-    try {
-      final apartments = await ApiService.fetchInventoryApartments();
-
-      // Fetch individual inventory item counts per apartment
-      final inventoryCounts = <String, int>{};
-      final hasLowStock = <String, bool>{};
-      
-      await Future.wait(
-        apartments.map((apt) async {
-          final aptId = apt['id']?.toString() ?? '';
-          try {
-            final items = await ApiService.fetchInventoryForApartment(aptId);
-            inventoryCounts[aptId] = items.length;
-            hasLowStock[aptId] = items.any((item) => (item.stock[aptId] ?? 0) <= 2);
-          } catch (_) {
-            inventoryCounts[aptId] = 0;
-            hasLowStock[aptId] = false;
-          }
-        }),
-      );
-
-      return (apartments, inventoryCounts, hasLowStock);
-    } catch (e) {
-      debugPrint('Error fetching inventory data: $e');
-      throw Exception('Network error: Could not fetch data. Please check your internet connection.');
-    }
->>>>>>> Stashed changes
   }
 
   void _navigateToInventoryList(
