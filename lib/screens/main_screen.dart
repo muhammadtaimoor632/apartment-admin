@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:wild_atlantic_hub/screens/cleaning_status_page.dart';
-import 'package:wild_atlantic_hub/screens/today_checkins_page.dart';
 import 'package:wild_atlantic_hub/screens/product_inventory_page.dart';
+<<<<<<< Updated upstream
+=======
 import 'package:wild_atlantic_hub/screens/booking_calendar_page.dart';
+import 'package:wild_atlantic_hub/screens/guest_requests_page.dart';
+>>>>>>> Stashed changes
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -15,9 +18,12 @@ class _MainScreenState extends State<MainScreen> {
 
   // Keys to control the navigation stack for each tab
   final _cleaningNavKey = GlobalKey<NavigatorState>();
-  final _todayNavKey = GlobalKey<NavigatorState>();
   final _inventoryNavKey = GlobalKey<NavigatorState>();
+<<<<<<< Updated upstream
+=======
   final _bookingsNavKey = GlobalKey<NavigatorState>();
+  final _requestsNavKey = GlobalKey<NavigatorState>();
+>>>>>>> Stashed changes
 
   late final List<Widget> _pages;
 
@@ -26,24 +32,10 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _pages = [
       Navigator(
-        key: _todayNavKey,
-        onGenerateRoute: (route) => MaterialPageRoute(
-          settings: route,
-          builder: (context) => const TodayCheckinsPage(),
-        ),
-      ),
-      Navigator(
         key: _cleaningNavKey,
         onGenerateRoute: (route) => MaterialPageRoute(
           settings: route,
           builder: (context) => const CleaningStatusPage(),
-        ),
-      ),
-      Navigator(
-        key: _bookingsNavKey,
-        onGenerateRoute: (route) => MaterialPageRoute(
-          settings: route,
-          builder: (context) => const BookingCalendarPage(),
         ),
       ),
       Navigator(
@@ -53,28 +45,36 @@ class _MainScreenState extends State<MainScreen> {
           builder: (context) => const ProductInventoryPage(),
         ),
       ),
+      Navigator(
+        key: _requestsNavKey,
+        onGenerateRoute: (route) => MaterialPageRoute(
+          settings: route,
+          builder: (context) => const GuestRequestsPage(),
+        ),
+      ),
     ];
   }
 
   void _onItemTapped(int index) {
+<<<<<<< Updated upstream
+=======
     if (_selectedIndex != index) {
       final keys = [
         _todayNavKey,
         _cleaningNavKey,
         _bookingsNavKey,
         _inventoryNavKey,
+        _requestsNavKey,
       ];
       final currentNavKey = keys[_selectedIndex];
       if (currentNavKey.currentState?.canPop() ?? false) {
         currentNavKey.currentState?.pop();
       }
     }
+>>>>>>> Stashed changes
     setState(() {
       _selectedIndex = index;
     });
-    if (index == 0) {
-      TodayCheckinsPage.refreshStream.add(null);
-    }
   }
 
   @override
@@ -82,21 +82,19 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
         backgroundColor: const Color(0xFF8CB2A4),
         items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(Icons.today), label: 'Today'),
           BottomNavigationBarItem(
             icon: Icon(Icons.checklist_rtl_outlined),
             label: 'Cleaning',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined),
-            label: 'Bookings',
-          ),
-          BottomNavigationBarItem(
             icon: Icon(Icons.inventory_2_outlined),
             label: 'Inventory',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.room_service_outlined),
+            label: 'Requests',
           ),
         ],
         currentIndex: _selectedIndex,
