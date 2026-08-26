@@ -1092,7 +1092,9 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: Colors.grey.shade200),
           ),
-          child: ExpansionTile(
+          child: Material(
+            color: Colors.transparent,
+            child: ExpansionTile(
             tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
             childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             onExpansionChanged: (isExpanded) {
@@ -1183,6 +1185,7 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBin
           ),
         ),
       ),
+    ),
     );
   }
 

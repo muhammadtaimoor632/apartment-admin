@@ -3,6 +3,7 @@ import 'package:wild_atlantic_hub/screens/cleaning_status_page.dart';
 import 'package:wild_atlantic_hub/screens/today_checkins_page.dart';
 import 'package:wild_atlantic_hub/screens/product_inventory_page.dart';
 import 'package:wild_atlantic_hub/screens/booking_calendar_page.dart';
+import 'package:wild_atlantic_hub/screens/guest_requests_page.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -18,6 +19,7 @@ class _MainScreenState extends State<MainScreen> {
   final _todayNavKey = GlobalKey<NavigatorState>();
   final _inventoryNavKey = GlobalKey<NavigatorState>();
   final _bookingsNavKey = GlobalKey<NavigatorState>();
+  final _requestsNavKey = GlobalKey<NavigatorState>();
 
   late final List<Widget> _pages;
 
@@ -53,6 +55,13 @@ class _MainScreenState extends State<MainScreen> {
           builder: (context) => const ProductInventoryPage(),
         ),
       ),
+      Navigator(
+        key: _requestsNavKey,
+        onGenerateRoute: (route) => MaterialPageRoute(
+          settings: route,
+          builder: (context) => const GuestRequestsPage(),
+        ),
+      ),
     ];
   }
 
@@ -63,6 +72,7 @@ class _MainScreenState extends State<MainScreen> {
         _cleaningNavKey,
         _bookingsNavKey,
         _inventoryNavKey,
+        _requestsNavKey,
       ];
       final currentNavKey = keys[_selectedIndex];
       if (currentNavKey.currentState?.canPop() ?? false) {
@@ -97,6 +107,10 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.inventory_2_outlined),
             label: 'Inventory',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.room_service_outlined),
+            label: 'Requests',
           ),
         ],
         currentIndex: _selectedIndex,

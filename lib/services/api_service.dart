@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:wild_atlantic_hub/models/inventory_item.dart';
 import 'package:wild_atlantic_hub/models/cleaning_details.dart';
 import 'package:wild_atlantic_hub/models/booking_event.dart';
+import 'package:wild_atlantic_hub/models/guest_request.dart';
 
 class ApiService {
   static const String _wordpressUrl = 'https://wildatlanticapartments.com';
@@ -508,5 +509,18 @@ class ApiService {
       }),
     );
     return response.statusCode == 200;
+  }
+
+  // --- Guest Requests ---
+
+  static Future<List<GuestRequest>> fetchGuestRequests() async {
+    final uri = Uri.parse('$_wordpressUrl/wp-json/fluent_dynamic/v1/guest-requests');
+    final response = await http.get(uri, headers: _authHeaders);
+    if (response.statusCode == 200) {
+      final List<dynamic> decodedData = json.decode(response.body);
+      return decodedData.map((data) => GuestRequest.fromJson(data as Map<String, dynamic>)).toList();
+    } else {
+      throw Exception('Failed to load guest requests: ${response.reasonPhrase}');
+    }
   }
 }
