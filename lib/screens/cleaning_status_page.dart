@@ -1,9 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:wild_atlantic_hub/models/apartment.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:wild_atlantic_hub/screens/status_details_page.dart';
 import 'package:wild_atlantic_hub/models/cleaning_details.dart';
+import 'package:wild_atlantic_hub/models/booking_event.dart';
 
 class CleaningStatusPage extends StatefulWidget {
   const CleaningStatusPage({super.key});
@@ -11,21 +16,116 @@ class CleaningStatusPage extends StatefulWidget {
   State<CleaningStatusPage> createState() => _CleaningStatusPageState();
 }
 
-class _CleaningStatusPageState extends State<CleaningStatusPage> {
+class _CleaningStatusPageState extends State<CleaningStatusPage> with WidgetsBindingObserver {
   List<Apartment> _apartments = [];
   final Map<String, String> _cleaningStatus = {};
   final Map<String, bool> _isLoading = {};
   final Map<String, int> _ratings = {};
+
+  // State maps
+  final Map<String, String> _lastRatedAts = {};
+  final Map<String, TextEditingController> _remarksControllers = {};
+  final Map<String, File?> _selectedImages = {};
+  final Map<String, String> _existingImageUrls = {};
+  final Map<String, String> _startTimes = {};
+  final Map<String, String> _endTimes = {};
+  final Map<String, List<RatingHistoryEntry>> _ratingHistories = {};
+
+  // Finish-cleaning checklist data per apartment (towels, code, parking, water)
+  final Map<String, Map<String, dynamic>> _checklists = {};
+  final Map<String, bool> _checklistsLoading = {};
+
+  // Track which apartment card is expanded
+  final Map<String, bool> _expandedCards = {};
+
+  DateTimeRange? _selectedDateRange;
+  List<BookingCalendar> _calendars = [];
+
   bool _isFetchingInitialData = true;
+  DateTime _lastKnownRealDate = DateTime.now();
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _selectedDateRange = DateTimeRange(
+      start: DateTime(now.year, now.month, 1),
+      end: DateTime(now.year, now.month, now.day),
+    );
+    WidgetsBinding.instance.addObserver(this);
     _initializeStatuses();
+    _startRefreshTimer();
   }
 
-  Future<void> _initializeStatuses() async {
-    if (mounted) {
+  void _startRefreshTimer() {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      _checkDateChange();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
+    for (var controller in _remarksControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _checkDateChange() {
+    final now = DateTime.now();
+    if (now.day != _lastKnownRealDate.day ||
+        now.month != _lastKnownRealDate.month ||
+        now.year != _lastKnownRealDate.year) {
+      _lastKnownRealDate = now;
+      _initializeStatuses();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkDateChange();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _checkDateChange();
+  }
+
+  // helper for matching names
+  String _applyMapping(String s) {
+    final normalized = s.toLowerCase().trim();
+    if (normalized == 'room 1') return 'room 1 eyre square';
+    if (normalized == 'room 2') return 'room 2 eyre square';
+    if (normalized == 'room 3') return 'room 3 eyre square';
+    if (normalized == 'room 4') return 'room 4 eyre square';
+    if (normalized == 'room 5') return 'room 5 eyre square';
+    if (normalized == '18 kirwans court') return 'kirwans lane';
+    return s;
+  }
+
+  String _normalize(String s) => _applyMapping(s)
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9 ]'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  bool _isRoomMatched(String a, String b) {
+    final aNorm = _normalize(a);
+    final bNorm = _normalize(b);
+    if (aNorm.isEmpty || bNorm.isEmpty) return false;
+    if (aNorm == bNorm) return true;
+    return RegExp(r'\b' + RegExp.escape(aNorm) + r'\b').hasMatch(bNorm) ||
+        RegExp(r'\b' + RegExp.escape(bNorm) + r'\b').hasMatch(aNorm);
+  }
+
+  Future<void> _initializeStatuses({bool silent = false}) async {
+    if (mounted && !silent) {
       setState(() {
         _isFetchingInitialData = true;
       });
@@ -34,6 +134,56 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
     try {
       final List<CleaningDetails> detailsList =
           await ApiService.fetchCleaningDetails();
+
+      bool needsApiRefresh = false;
+
+      // Automatically evaluate checkouts against the implicitly generated 'cleaned' statuses
+      try {
+        final calendars = await ApiService.fetchBookingCalendars();
+        if (mounted) {
+          setState(() {
+            _calendars = calendars;
+          });
+        }
+        final targetDay = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+
+        for (final detail in detailsList) {
+           // 'N/A' means the backend carried over the status from yesterday but no work has been done yet today
+           if (detail.status.toLowerCase() == 'cleaned' && detail.startTime == 'N/A' && detail.endTime == 'N/A') {
+              bool isOccupied = false;
+              for (final cal in calendars) {
+                  for (final ev in cal.events) {
+                      if (ev.isBlocked) continue;
+                      if (!_isRoomMatched(ev.room, detail.name)) continue;
+
+                      final start = DateTime(ev.start.year, ev.start.month, ev.start.day);
+                      final end = DateTime(ev.end.year, ev.end.month, ev.end.day);
+
+                      // Either checking out today, or spanning completely through today
+                      if (end.isAtSameMomentAs(targetDay) || (!start.isAfter(targetDay) && end.isAfter(targetDay))) {
+                         isOccupied = true;
+                         break;
+                      }
+                  }
+                  if (isOccupied) break;
+              }
+
+              if (isOccupied) {
+                 await ApiService.updateCleaningStatus(apartmentId: detail.id, statusToSend: 'reset', rating: 0);
+                 needsApiRefresh = true;
+              }
+           }
+        }
+      } catch (e) {
+        // Ignored, calendar parsing failed but we should proceed to render available data
+      }
+
+      if (needsApiRefresh) {
+        final renewedDetailsList = await ApiService.fetchCleaningDetails();
+        detailsList.clear();
+        detailsList.addAll(renewedDetailsList);
+      }
+
       if (mounted) {
         setState(() {
           _apartments = detailsList
@@ -42,14 +192,40 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
               )
               .toList();
 
-          // Initialize local state from the fetched details
           for (final detail in detailsList) {
-            _cleaningStatus[detail.id] = 'not_cleaned'; // Default value
+            _cleaningStatus[detail.id] = detail.status;
             _isLoading[detail.id] = false;
-            _ratings[detail.id] = detail.rating; // Use rating from server
+            _ratings[detail.id] = detail.rating;
+            _lastRatedAts[detail.id] = detail.lastRatedAt;
+            _existingImageUrls[detail.id] = detail.cleaningImageUrl;
+            _startTimes[detail.id] = detail.startTime;
+            _endTimes[detail.id] = detail.endTime;
+            _ratingHistories[detail.id] = detail.ratingHistory;
+
+            if (!_expandedCards.containsKey(detail.id)) {
+              _expandedCards[detail.id] = false;
+            }
+
+            if (!_remarksControllers.containsKey(detail.id)) {
+              _remarksControllers[detail.id] =
+                  TextEditingController(text: detail.remarks);
+            } else {
+              _remarksControllers[detail.id]!.text = detail.remarks;
+            }
           }
+
+          // Clear cached checklists for collapsed cards so they fetch fresh next time they are expanded
+          _checklists.removeWhere((aptId, _) => !(_expandedCards[aptId] ?? false));
         });
-        await _fetchStatusesFromServer(); // Overwrite with live statuses
+
+        // Forcefully refresh checklists for currently expanded cards
+        for (final aptId in _expandedCards.keys) {
+          if (_expandedCards[aptId] == true) {
+            _fetchChecklist(aptId);
+          }
+        }
+
+        await _fetchStatusesFromServer();
       }
     } catch (e) {
       if (mounted) {
@@ -59,10 +235,37 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
         );
       }
     } finally {
-      if (mounted) {
+      if (mounted && !silent) {
         setState(() {
           _isFetchingInitialData = false;
         });
+      }
+    }
+  }
+
+  Future<void> _fetchChecklist(String apartmentId) async {
+    if (_checklistsLoading[apartmentId] == true) return;
+    if (mounted) {
+      setState(() => _checklistsLoading[apartmentId] = true);
+    }
+    try {
+      final data = await ApiService.fetchCleaningChecklist(
+        apartmentId: apartmentId,
+      );
+      if (mounted) {
+        setState(() {
+          if (data != null) {
+            _checklists[apartmentId] = data;
+          } else {
+            _checklists.remove(apartmentId);
+          }
+        });
+      }
+    } catch (_) {
+      // Silent — checklist display is non-critical
+    } finally {
+      if (mounted) {
+        setState(() => _checklistsLoading[apartmentId] = false);
       }
     }
   }
@@ -87,63 +290,272 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
     }
   }
 
-  Future<void> _showCleaningTimePicker(String apartmentId) async {
-    final int? selectedDuration = await showDialog<int>(
+
+
+  Future<void> _showFinishCleaningChecklist(Apartment apartment) async {
+    final int currentRating = _ratings[apartment.id] ?? 0;
+    final String remarks = _remarksControllers[apartment.id]?.text ?? '';
+
+    // Validate: if rating is low (<=2), remarks are required
+    if (currentRating > 0 && currentRating <= 2 && remarks.trim().isEmpty) {
+      _showSnackBar(
+        'Remarks are required for ratings of 2 stars or below.',
+        Colors.orange,
+      );
+      return;
+    }
+
+    final towelsController = TextEditingController(text: '0');
+    bool codeSet = false;
+    bool parkingPassChecked = false;
+    bool waterFilled = false;
+    bool mirrorLightsBlue = false;
+
+    final bool? submitted = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (BuildContext context) {
-        return SimpleDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-          contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-          title: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              const Center(child: Text('Estimated Cleaning Time')),
-              Positioned(
-                top: -16,
-                right: -16,
-                child: IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            void incrementTowels() {
+              final n = int.tryParse(towelsController.text) ?? 0;
+              setLocalState(() => towelsController.text = (n + 1).toString());
+            }
+
+            void decrementTowels() {
+              final n = int.tryParse(towelsController.text) ?? 0;
+              if (n > 0) {
+                setLocalState(() => towelsController.text = (n - 1).toString());
+              }
+            }
+
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Finish Cleaning Checklist',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    apartment.name,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 8),
+                    Text(
+                      'Rooms',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade500,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // Towels number selector
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Towels left on bed',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: decrementTowels,
+                            icon: const Icon(Icons.remove_circle_outline),
+                            color: const Color(0xFF8CB2A4),
+                            iconSize: 22,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                                minWidth: 32, minHeight: 32),
+                          ),
+                          SizedBox(
+                            width: 44,
+                            child: TextField(
+                              controller: towelsController,
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              style: const TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w600),
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                contentPadding:
+                                    EdgeInsets.symmetric(vertical: 6),
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: incrementTowels,
+                            icon: const Icon(Icons.add_circle_outline),
+                            color: const Color(0xFF8CB2A4),
+                            iconSize: 22,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                                minWidth: 32, minHeight: 32),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildChecklistTile(
+                      label: 'Set the code',
+                      value: codeSet,
+                      onChanged: (v) => setLocalState(() => codeSet = v),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildChecklistTile(
+                      label: 'Parking pass in place',
+                      value: parkingPassChecked,
+                      onChanged: (v) =>
+                          setLocalState(() => parkingPassChecked = v),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildChecklistTile(
+                      label: 'Water filled',
+                      value: waterFilled,
+                      onChanged: (v) => setLocalState(() => waterFilled = v),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildChecklistTile(
+                      label: 'Mirror lights are blue',
+                      value: mirrorLightsBlue,
+                      onChanged: (v) => setLocalState(() => mirrorLightsBlue = v),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          children: <Widget>[
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 45),
-              child: const Text('45 mins'),
-            ),
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 60),
-              child: const Text('1 hour'),
-            ),
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 75),
-              child: const Text('1 hour 15 mins'),
-            ),
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 90),
-              child: const Text('1 hour 30 mins'),
-            ),
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 105),
-              child: const Text('1 hour 45 mins'),
-            ),
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 120),
-              child: const Text('2 hours'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF8CB2A4),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    elevation: 0,
+                  ),
+                  child: const Text('Submit'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
-    if (selectedDuration != null) {
-      _updateStatus(apartmentId, 'start', durationMinutes: selectedDuration);
+
+    if (submitted != true) {
+      towelsController.dispose();
+      return;
     }
+
+    final towelsCount = int.tryParse(towelsController.text) ?? 0;
+    towelsController.dispose();
+
+    // Upload the rating and feedback now
+    await _saveFeedback(apartment.id, silent: true);
+
+    final existingData = _checklists[apartment.id] ?? {};
+    final checklistData = {
+      ...existingData,
+      'towels_left_on_bed': towelsCount,
+      'code_set': codeSet,
+      'parking_pass_checked': parkingPassChecked,
+      'water_filled': waterFilled,
+      'mirror_lights_blue': mirrorLightsBlue,
+      'submitted_at': DateTime.now().toIso8601String(),
+    };
+
+    final saved = await ApiService.saveCleaningChecklist(
+      apartmentId: apartment.id,
+      data: checklistData,
+      rating: currentRating,
+    );
+
+    if (!saved) {
+      _showSnackBar('Could not save checklist. Please try again.', Colors.red);
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _checklists[apartment.id] = checklistData;
+      });
+    }
+
+    await _updateStatus(apartment.id, 'stop');
+  }
+
+  Widget _buildChecklistTile({
+    required String label,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => onChanged(!value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label, style: const TextStyle(fontSize: 13)),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: const Color(0xFF8CB2A4),
+            ),
+            Text(
+              value ? 'Yes' : 'No',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: value
+                    ? const Color(0xFF8CB2A4)
+                    : Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showResetConfirmation(Apartment apartment) async {
@@ -151,25 +563,11 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-        contentPadding: const EdgeInsets.fromLTRB(30, 24, 30, 24),
-        title: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            const Text('Confirm Reset'),
-            Positioned(
-              top: -16,
-              right: -16,
-              child: IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(false),
-              ),
-            ),
-          ],
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Confirm Reset', style: TextStyle(fontSize: 16)),
         content: Text(
-          'Are you sure you want to reset all cleaning data for ${apartment.name} today?',
+          'Reset all cleaning data for ${apartment.name} today?',
+          style: const TextStyle(fontSize: 14),
         ),
         actions: [
           TextButton(
@@ -188,47 +586,96 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
     }
   }
 
+  Future<void> _showStartCleaningPopup(Apartment apartment) async {
+    final bool? collected = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Start Cleaning', style: TextStyle(fontSize: 16)),
+        content: const Text(
+          'Have you collected the parking pass?',
+          style: TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(null),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No', style: TextStyle(color: Colors.red)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF8CB2A4),
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+
+    if (collected == null) return;
+
+    final existingData = _checklists[apartment.id] ?? {};
+    final updatedData = {
+      ...existingData,
+      'collected_parking_pass_start': collected,
+    };
+
+    if (mounted) {
+      setState(() {
+        _checklists[apartment.id] = updatedData;
+      });
+    }
+
+    final currentRating = _ratings[apartment.id] ?? 0;
+
+    await ApiService.saveCleaningChecklist(
+      apartmentId: apartment.id,
+      data: updatedData,
+      rating: currentRating,
+    );
+
+    await _updateStatus(apartment.id, 'start');
+  }
+
   Future<void> _updateRating(String apartmentId, int newRating) async {
     if (!mounted) return;
 
-    final originalRating = _ratings[apartmentId];
     setState(() {
-      _isLoading[apartmentId] = true;
-      _ratings[apartmentId] = newRating; // Optimistic UI update
+      _ratings[apartmentId] = newRating;
     });
 
     try {
+      print('flutter: Attempting instant rating upload for $apartmentId: $newRating');
       final response = await ApiService.updateCleaningRating(
         apartmentId: apartmentId,
         rating: newRating,
       );
-
-      if (response.statusCode != 200) {
-        final responseBody = json.decode(response.body);
-        final errorMessage =
-            responseBody['message'] ?? 'An unknown error occurred.';
-        _showSnackBar('Error: $errorMessage', Colors.red);
-        if (mounted) {
-          setState(() {
-            _ratings[apartmentId] = originalRating!; // Rollback on error
-          });
-        }
+      print('flutter: Instant rating response: ${response.statusCode} - ${response.body}');
+      
+      if (response.statusCode == 200) {
+        _showSnackBar('Rating uploaded to database successfully!', Colors.blue);
       } else {
-        _showSnackBar('Rating updated!', Colors.green);
+        _showSnackBar('Failed to upload rating: HTTP ${response.statusCode}', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('Failed to connect. Check your connection.', Colors.red);
-      if (mounted) {
-        setState(() {
-          _ratings[apartmentId] = originalRating!; // Rollback on error
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading[apartmentId] = false;
-        });
-      }
+      print('flutter: Instant rating error: $e');
+      _showSnackBar('Network error while uploading rating', Colors.red);
+    }
+
+    // If rating is low (<=2), show feedback requirement hint
+    if (newRating <= 2) {
+      _showSnackBar(
+        'Low rating — please add remarks below before finishing.',
+        Colors.orange,
+      );
     }
   }
 
@@ -256,11 +703,25 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
           setState(() {
             if (statusToSend == 'start') {
               _cleaningStatus[apartmentId] = 'in_progress';
+              // Update start time to now
+              _startTimes[apartmentId] =
+                  DateFormat('hh:mm a').format(DateTime.now());
+              _endTimes[apartmentId] = 'N/A';
             } else if (statusToSend == 'stop') {
               _cleaningStatus[apartmentId] = 'cleaned';
+              // Update end time to now
+              _endTimes[apartmentId] =
+                  DateFormat('hh:mm a').format(DateTime.now());
             } else if (statusToSend == 'reset') {
               _cleaningStatus[apartmentId] = 'not_cleaned';
               _ratings[apartmentId] = 0;
+              _startTimes[apartmentId] = 'N/A';
+              _endTimes[apartmentId] = 'N/A';
+              _lastRatedAts[apartmentId] = '';
+              _remarksControllers[apartmentId]?.text = '';
+              _selectedImages[apartmentId] = null;
+              _existingImageUrls[apartmentId] = '';
+              _checklists.remove(apartmentId);
             }
           });
         }
@@ -285,13 +746,16 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
   void _showSnackBar(String message, Color backgroundColor) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: backgroundColor),
+      SnackBar(
+        content: Text(message, style: const TextStyle(fontSize: 13)),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 
-<<<<<<< Updated upstream
-  Widget _buildStarRating(String apartmentId) {
-=======
   Future<void> _pickImage(String apartmentId) async {
     final picker = ImagePicker();
     try {
@@ -628,18 +1092,16 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: Colors.grey.shade200),
           ),
-          child: Material(
-            color: Colors.transparent,
-            child: ExpansionTile(
-              tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-              childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              onExpansionChanged: (isExpanded) {
-                if (isExpanded) {
-                  // Fetch latest data silently when dropdown is opened
-                  _initializeStatuses(silent: true);
-                }
-              },
-              title: Row(
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            onExpansionChanged: (isExpanded) {
+              if (isExpanded) {
+                // Fetch latest data silently when dropdown is opened
+                _initializeStatuses(silent: true);
+              }
+            },
+            title: Row(
               children: [
                 Icon(Icons.history, size: 16, color: Colors.grey.shade600),
                 const SizedBox(width: 8),
@@ -718,7 +1180,6 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
                 ),
               ),
             )).toList(),
-            ),
           ),
         ),
       ),
@@ -1633,34 +2094,55 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
       );
     }).toList();
 
->>>>>>> Stashed changes
     return Column(
       children: [
-        const Text(
-          'Todays Rating',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: Colors.black54,
-          ),
-        ),
-        const SizedBox(height: 4),
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(5, (index) {
-            final ratingValue = index + 1;
-            return IconButton(
-              icon: Icon(
-                (_ratings[apartmentId] ?? 0) >= ratingValue
-                    ? Icons.star
-                    : Icons.star_border,
-                color: Colors.amber,
-                size: 32,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Total apartment cleaning:',
+              style: TextStyle(
+                color: Color(0xFF2C3E50),
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
               ),
-              onPressed: () => _updateRating(apartmentId, ratingValue),
-            );
-          }),
+            ),
+            Text(
+              '$totalApartmentCleanings',
+              style: const TextStyle(
+                color: Color(0xFF8CB2A4),
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
         ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Expanded(
+              child: Text(
+                'Total rooms cleaned:',
+                style: TextStyle(
+                  color: Color(0xFF2C3E50),
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Text(
+              '$totalRoomsCleaned',
+              style: const TextStyle(
+                color: Color(0xFF8CB2A4),
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...apartmentWidgets,
       ],
     );
   }
@@ -1669,11 +2151,15 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cleaning', style: TextStyle(color: Colors.white)),
+        title: const Text('Cleaning',
+            style: TextStyle(color: Colors.white, fontSize: 18)),
         backgroundColor: const Color(0xFF8CB2A4),
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.bar_chart_outlined, color: Colors.white),
+            icon: const Icon(Icons.bar_chart_outlined, color: Colors.white,
+                size: 22),
+            tooltip: 'View Status Details',
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -1684,138 +2170,23 @@ class _CleaningStatusPageState extends State<CleaningStatusPage> {
           ),
         ],
       ),
-      body: _isFetchingInitialData
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _initializeStatuses,
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24.0,
-                  vertical: 8.0,
-                ),
-                itemCount: _apartments.length,
-                itemBuilder: (context, index) {
-                  final apartment = _apartments[index];
-                  final String status =
-                      _cleaningStatus[apartment.id] ?? 'not_cleaned';
-                  final bool isLoading = _isLoading[apartment.id] ?? false;
-                  final int rating = _ratings[apartment.id] ?? 0;
-
-                  String buttonText;
-                  Color buttonColor;
-                  VoidCallback? onPressedAction;
-                  bool isButtonDisabled =
-                      isLoading || (status == 'not_cleaned' && rating == 0);
-
-                  switch (status) {
-                    case 'in_progress':
-                      buttonText = 'Finish Cleaning';
-                      buttonColor = const Color(0xFFE57373);
-                      onPressedAction =
-                          () => _updateStatus(apartment.id, 'stop');
-                      break;
-                    case 'cleaned':
-                      buttonText = 'Resume Cleaning';
-                      buttonColor = const Color(0xFFF7C59F);
-                      onPressedAction =
-                          () => _updateStatus(apartment.id, 'start');
-                      break;
-                    default:
-                      buttonText = 'Start Cleaning';
-                      buttonColor = const Color(0xFF8CB2A4);
-                      onPressedAction =
-                          () => _showCleaningTimePicker(apartment.id);
-                  }
-
-                  return Card(
-                    color: Colors.white,
-                    elevation: 2,
-                    margin: const EdgeInsets.symmetric(vertical: 12.0),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Spacer(),
-                              Expanded(
-                                flex: 3,
-                                child: Text(
-                                  apartment.name,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 1,
-                                child: (status != 'not_cleaned') && !isLoading
-                                    ? IconButton(
-                                        icon: const Icon(
-                                          Icons.refresh,
-                                          color: Colors.blueGrey,
-                                        ),
-                                        onPressed: () =>
-                                            _showResetConfirmation(apartment),
-                                      )
-                                    : const SizedBox(width: 48),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          CircleAvatar(
-                            radius: 50,
-                            backgroundColor: Colors.grey.shade200,
-                            backgroundImage: apartment.imageUrl.isNotEmpty
-                                ? NetworkImage(apartment.imageUrl)
-                                : null,
-                            child: apartment.imageUrl.isEmpty
-                                ? const Icon(
-                                    Icons.apartment,
-                                    size: 50,
-                                    color: Colors.grey,
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(height: 16),
-                          _buildStarRating(apartment.id),
-                          const SizedBox(height: 16),
-                          isLoading
-                              ? const Center(child: CircularProgressIndicator())
-                              : SizedBox(
-                                  width: 220,
-                                  height: 50,
-                                  child: ElevatedButton(
-                                    onPressed:
-                                        isButtonDisabled ? null : onPressedAction,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: buttonColor,
-                                      foregroundColor: Colors.white,
-                                      disabledBackgroundColor:
-                                          Colors.grey.shade400,
-                                      textStyle: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    child: Text(buttonText),
-                                  ),
-                                ),
-                          const SizedBox(height: 8),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+      body: RefreshIndicator(
+        onRefresh: _initializeStatuses,
+        color: const Color(0xFF8CB2A4),
+        child: ListView.builder(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 14.0,
+            vertical: 8.0,
+          ),
+          itemCount: _apartments.length + 1,
+          itemBuilder: (context, index) {
+            if (index == _apartments.length) {
+              return _buildCalculatorSection();
+            }
+            return _buildApartmentCard(_apartments[index]);
+          },
+        ),
+      ),
     );
   }
 }
