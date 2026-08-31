@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wild_atlantic_hub/models/guest_request.dart';
 import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class GuestRequestsPage extends StatefulWidget {
   const GuestRequestsPage({super.key});
@@ -15,11 +16,33 @@ class _GuestRequestsPageState extends State<GuestRequestsPage> {
   bool _isLoading = true;
   String? _errorMessage;
   final Color _primaryColor = const Color(0xFF8CB2A4);
+  Set<int> _completedOrders = {};
 
   @override
   void initState() {
     super.initState();
+    _loadCompletedOrders();
     _fetchRequests();
+  }
+
+  Future<void> _loadCompletedOrders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final completedList = prefs.getStringList('completed_orders') ?? [];
+    setState(() {
+      _completedOrders = completedList.map((e) => int.tryParse(e) ?? 0).toSet();
+    });
+  }
+
+  Future<void> _toggleOrderStatus(int orderId) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      if (_completedOrders.contains(orderId)) {
+        _completedOrders.remove(orderId);
+      } else {
+        _completedOrders.add(orderId);
+      }
+    });
+    await prefs.setStringList('completed_orders', _completedOrders.map((e) => e.toString()).toList());
   }
 
   Future<void> _fetchRequests() async {
@@ -154,9 +177,11 @@ class _GuestRequestsPageState extends State<GuestRequestsPage> {
   }
 
   Widget _buildRequestCard(GuestRequest req) {
+    final isCompleted = _completedOrders.contains(req.orderId);
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isCompleted ? Colors.grey.shade50 : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -193,10 +218,11 @@ class _GuestRequestsPageState extends State<GuestRequestsPage> {
                         req.guestName.trim().isEmpty || req.guestName.toLowerCase() == 'guest'
                             ? (req.bedroomNumber.isNotEmpty ? req.bedroomNumber : 'Direct Order')
                             : '${req.guestName} - ${req.bedroomNumber.isNotEmpty ? req.bedroomNumber : 'Direct Order'}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: Colors.black87,
+                          color: isCompleted ? Colors.grey.shade500 : Colors.black87,
+                          decoration: isCompleted ? TextDecoration.lineThrough : null,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -214,17 +240,29 @@ class _GuestRequestsPageState extends State<GuestRequestsPage> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(req.status).withValues(alpha: 0.1),
+                    color: _getStatusColor(isCompleted ? 'completed' : req.status).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    req.status.toUpperCase(),
+                    isCompleted ? 'COMPLETED' : req.status.toUpperCase(),
                     style: TextStyle(
-                      color: _getStatusColor(req.status),
+                      color: _getStatusColor(isCompleted ? 'completed' : req.status),
                       fontWeight: FontWeight.w700,
                       fontSize: 11,
                       letterSpacing: 0.5,
                     ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Transform.scale(
+                  scale: 1.2,
+                  child: Checkbox(
+                    value: isCompleted,
+                    onChanged: (value) => _toggleOrderStatus(req.orderId),
+                    activeColor: _primaryColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
                   ),
                 ),
               ],
@@ -269,10 +307,11 @@ class _GuestRequestsPageState extends State<GuestRequestsPage> {
                       Expanded(
                         child: Text(
                           item.productName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w500,
-                            color: Colors.black87,
+                            color: isCompleted ? Colors.grey.shade500 : Colors.black87,
+                            decoration: isCompleted ? TextDecoration.lineThrough : null,
                           ),
                         ),
                       ),
