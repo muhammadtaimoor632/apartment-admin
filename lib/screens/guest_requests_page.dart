@@ -165,10 +165,10 @@ class _GuestRequestsPageState extends State<GuestRequestsPage> {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(12.0),
       physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _requests.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 16),
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final req = _requests[index];
         return _buildRequestCard(req);
@@ -182,7 +182,7 @@ class _GuestRequestsPageState extends State<GuestRequestsPage> {
     return Container(
       decoration: BoxDecoration(
         color: isCompleted ? Colors.grey.shade50 : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -193,7 +193,7 @@ class _GuestRequestsPageState extends State<GuestRequestsPage> {
         border: Border.all(color: Colors.grey.shade100),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -202,14 +202,14 @@ class _GuestRequestsPageState extends State<GuestRequestsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: _primaryColor.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.meeting_room, color: _primaryColor, size: 24),
+                  child: Icon(Icons.meeting_room, color: _primaryColor, size: 20),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -219,17 +219,17 @@ class _GuestRequestsPageState extends State<GuestRequestsPage> {
                             ? (req.bedroomNumber.isNotEmpty ? req.bedroomNumber : 'Direct Order')
                             : '${req.guestName} - ${req.bedroomNumber.isNotEmpty ? req.bedroomNumber : 'Direct Order'}',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: isCompleted ? Colors.grey.shade500 : Colors.black87,
                           decoration: isCompleted ? TextDecoration.lineThrough : null,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         _formatDate(req.date),
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 11,
                           color: Colors.grey.shade500,
                           fontWeight: FontWeight.w500,
                         ),
@@ -238,7 +238,7 @@ class _GuestRequestsPageState extends State<GuestRequestsPage> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: _getStatusColor(isCompleted ? 'completed' : req.status).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -248,14 +248,14 @@ class _GuestRequestsPageState extends State<GuestRequestsPage> {
                     style: TextStyle(
                       color: _getStatusColor(isCompleted ? 'completed' : req.status),
                       fontWeight: FontWeight.w700,
-                      fontSize: 11,
+                      fontSize: 10,
                       letterSpacing: 0.5,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Transform.scale(
-                  scale: 1.2,
+                  scale: 1.0,
                   child: Checkbox(
                     value: isCompleted,
                     onChanged: (value) => _toggleOrderStatus(req.orderId),
@@ -268,47 +268,47 @@ class _GuestRequestsPageState extends State<GuestRequestsPage> {
               ],
             ),
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 14),
+              padding: EdgeInsets.symmetric(vertical: 8),
               child: Divider(height: 1, thickness: 1),
             ),
             // Items List
             Text(
               'REQUESTED ITEMS',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.w800,
                 color: Colors.grey.shade400,
                 letterSpacing: 0.5,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             ...req.items.map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
+                  padding: const EdgeInsets.only(bottom: 4.0),
                   child: Row(
                     children: [
                       Container(
-                        width: 24,
-                        height: 24,
+                        width: 20,
+                        height: 20,
                         decoration: BoxDecoration(
                           color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(4),
                         ),
                         alignment: Alignment.center,
                         child: Text(
                           '${item.quantity}x',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.w600,
                             color: Colors.grey.shade800,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           item.productName,
                           style: TextStyle(
-                            fontSize: 15,
+                            fontSize: 13,
                             fontWeight: FontWeight.w500,
                             color: isCompleted ? Colors.grey.shade500 : Colors.black87,
                             decoration: isCompleted ? TextDecoration.lineThrough : null,
