@@ -15,6 +15,9 @@ class FDP_WooCommerce_Integration {
         // Handle WooCommerce Checkout to capture Bedroom Number
         add_action('woocommerce_checkout_update_order_meta', array($this, 'save_bedroom_number_to_order'));
         add_action('woocommerce_store_api_checkout_update_order_from_request', array($this, 'save_bedroom_number_to_order_blocks'), 10, 2);
+        
+        // Failsafe: Transfer custom cart item data to order during creation
+        add_action('woocommerce_checkout_create_order_line_item', array($this, 'save_bedroom_to_order_from_line_item'), 10, 4);
 
         // Register custom REST API endpoint for the app
         add_action('rest_api_init', array($this, 'register_guest_requests_endpoint'));
@@ -44,7 +47,7 @@ class FDP_WooCommerce_Integration {
         }
 
         wp_enqueue_style('fdp-side-cart-css', FF_DYNAMIC_PAGES_URL . 'assets/side-cart.css', array(), FF_DYNAMIC_PAGES_VERSION);
-        wp_enqueue_script('fdp-side-cart-js', FF_DYNAMIC_PAGES_URL . 'assets/side-cart.js', array('jquery'), FF_DYNAMIC_PAGES_VERSION, true);
+        wp_enqueue_script('fdp-side-cart-js', FF_DYNAMIC_PAGES_URL . 'assets/side-cart-v2.js', array('jquery'), FF_DYNAMIC_PAGES_VERSION, true);
 
         // Extract Bedroom Number from Fluent Forms submission if available
         global $post;
@@ -64,7 +67,7 @@ class FDP_WooCommerce_Integration {
                     $field_value = '';
                     if (!empty($identifier_field)) {
                         // Extract field name if user accidentally pasted the shortcode
-                        if (preg_match('/field="([^"]+)"/', $identifier_field, $matches)) {
+                        if (preg_match('/field=(?:&quot;|"|\')?([^"\'&\]\s]+)/', $identifier_field, $matches)) {
                             $identifier_field = $matches[1];
                         }
                         
@@ -183,9 +186,17 @@ class FDP_WooCommerce_Integration {
         $bedroom_number = isset($_POST['bedroom_number']) ? sanitize_text_field($_POST['bedroom_number']) : '';
         
         if ($product_id > 0) {
-            WC()->cart->add_to_cart($product_id, $quantity);
+            $cart_item_data = array();
+            if (!empty($bedroom_number)) {
+                $cart_item_data['fdp_bedroom_number'] = $bedroom_number;
+            }
+            WC()->cart->add_to_cart($product_id, $quantity, 0, array(), $cart_item_data);
+            
             if (!empty($bedroom_number) && isset(WC()->session)) {
                 WC()->session->set('fdp_bedroom_number', $bedroom_number);
+                if (method_exists(WC()->session, 'save_data')) {
+                    WC()->session->save_data();
+                }
             }
             wp_send_json_success('Added to cart');
         } else {
@@ -259,9 +270,20 @@ class FDP_WooCommerce_Integration {
 
     public function save_bedroom_number_to_order($order_id) {
         $bedroom_number = '';
-        if (isset($_COOKIE['fdp_bedroom_number'])) {
+        
+        // Check cart items first
+        if (!is_null(WC()->cart)) {
+            foreach (WC()->cart->get_cart() as $cart_item) {
+                if (!empty($cart_item['fdp_bedroom_number'])) {
+                    $bedroom_number = $cart_item['fdp_bedroom_number'];
+                    break;
+                }
+            }
+        }
+        
+        if (empty($bedroom_number) && isset($_COOKIE['fdp_bedroom_number'])) {
             $bedroom_number = sanitize_text_field(stripslashes($_COOKIE['fdp_bedroom_number']));
-        } elseif (isset(WC()->session) && WC()->session->get('fdp_bedroom_number')) {
+        } elseif (empty($bedroom_number) && isset(WC()->session) && WC()->session->get('fdp_bedroom_number')) {
             $bedroom_number = WC()->session->get('fdp_bedroom_number');
         }
 
@@ -277,15 +299,47 @@ class FDP_WooCommerce_Integration {
 
     public function save_bedroom_number_to_order_blocks($order, $request) {
         $bedroom_number = '';
-        if (isset($_COOKIE['fdp_bedroom_number'])) {
+        
+        // Check cart items first
+        if (!is_null(WC()->cart)) {
+            foreach (WC()->cart->get_cart() as $cart_item) {
+                if (!empty($cart_item['fdp_bedroom_number'])) {
+                    $bedroom_number = $cart_item['fdp_bedroom_number'];
+                    break;
+                }
+            }
+        }
+        
+        if (empty($bedroom_number) && isset($_COOKIE['fdp_bedroom_number'])) {
             $bedroom_number = sanitize_text_field(stripslashes($_COOKIE['fdp_bedroom_number']));
-        } elseif (isset(WC()->session) && WC()->session->get('fdp_bedroom_number')) {
+        } elseif (empty($bedroom_number) && isset(WC()->session) && WC()->session->get('fdp_bedroom_number')) {
             $bedroom_number = WC()->session->get('fdp_bedroom_number');
         }
         
         if (!empty($bedroom_number)) {
             $order->update_meta_data('_fdp_bedroom_number', $bedroom_number);
             $order->add_order_note("Guest Request for Bedroom/Apartment: " . $bedroom_number);
+        }
+    }
+
+    public function save_bedroom_to_order_from_line_item($item, $cart_item_key, $values, $order) {
+        if (!empty($values['fdp_bedroom_number'])) {
+            // Save it to the order
+            $order->update_meta_data('_fdp_bedroom_number', $values['fdp_bedroom_number']);
+            
+            // Avoid duplicate order notes if multiple items have the same bedroom number
+            $existing_notes = wc_get_order_notes(array('order_id' => $order->get_id()));
+            $note_text = "Guest Request for Bedroom/Apartment: " . $values['fdp_bedroom_number'];
+            $note_exists = false;
+            foreach ($existing_notes as $note) {
+                if ($note->content === $note_text) {
+                    $note_exists = true;
+                    break;
+                }
+            }
+            if (!$note_exists) {
+                $order->add_order_note($note_text);
+            }
         }
     }
 
@@ -314,6 +368,74 @@ class FDP_WooCommerce_Integration {
 
         foreach ($orders as $order) {
             $bedroom_number = $order->get_meta('_fdp_bedroom_number');
+            $debug_meta = array();
+            foreach($order->get_meta_data() as $meta) {
+                $debug_meta[$meta->key] = $meta->value;
+            }
+
+            if (empty($bedroom_number)) {
+                $session_entry = $order->get_meta('_wc_order_attribution_session_entry');
+                if (!empty($session_entry) && strpos($session_entry, 'fdp_hash=') !== false) {
+                    $parsed = parse_url($session_entry);
+                    if (isset($parsed['query'])) {
+                        parse_str($parsed['query'], $query_params);
+                        if (isset($query_params['fdp_hash'])) {
+                            $hash = sanitize_text_field($query_params['fdp_hash']);
+                            $post_id = url_to_postid(explode('?', $session_entry)[0]);
+                            
+                            if ($post_id) {
+                                $bedroom_number = get_the_title($post_id);
+                                $identifier_field = get_post_meta($post_id, '_fdp_order_identifier_field', true);
+                                
+                                global $wpdb;
+                                $table_name = $wpdb->prefix . 'fdp_generated_links';
+                                $link_record = $wpdb->get_row($wpdb->prepare("SELECT submission_id FROM {$table_name} WHERE hash = %s", $hash));
+                                
+                                if ($link_record) {
+                                    $submission = $wpdb->get_row($wpdb->prepare("SELECT response FROM {$wpdb->prefix}fluentform_submissions WHERE id = %d", $link_record->submission_id));
+                                    if ($submission) {
+                                        $data = json_decode($submission->response, true);
+                                        $field_value = '';
+                                        
+                                        if (!empty($identifier_field)) {
+                                            if (preg_match('/field=(?:&quot;|"|\')?([^"\'&\]\s]+)/', $identifier_field, $matches)) {
+                                                $identifier_field = $matches[1];
+                                            }
+                                            $keys = explode('.', $identifier_field);
+                                            $current_data = $data;
+                                            $found = true;
+                                            foreach ($keys as $key) {
+                                                if (is_array($current_data) && isset($current_data[$key])) {
+                                                    $current_data = $current_data[$key];
+                                                } else {
+                                                    $found = false;
+                                                    break;
+                                                }
+                                            }
+                                            if ($found && !is_array($current_data) && !empty($current_data)) {
+                                                $field_value = $current_data;
+                                            }
+                                        }
+
+                                        if (!empty($field_value)) {
+                                            $bedroom_number .= ' - ' . $field_value;
+                                        } elseif(isset($data['apartment_number']) && !empty($data['apartment_number'])) {
+                                            $bedroom_number .= ' - ' . $data['apartment_number'];
+                                        } elseif (isset($data['bedroom_number']) && !empty($data['bedroom_number'])) {
+                                            $bedroom_number .= ' - ' . $data['bedroom_number'];
+                                        }
+                                        
+                                        // Save it for future so we don't have to calculate again
+                                        $order->update_meta_data('_fdp_bedroom_number', $bedroom_number);
+                                        $order->save();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             if (empty($bedroom_number)) {
                 $bedroom_number = 'Direct Order';
             }
@@ -334,7 +456,8 @@ class FDP_WooCommerce_Integration {
                 'date'           => $order->get_date_created()->date('Y-m-d H:i:s'),
                 'bedroom_number' => $bedroom_number,
                 'total'          => $order->get_total(),
-                'items'          => $items
+                'items'          => $items,
+                'debug_meta'     => $debug_meta
             );
         }
 
