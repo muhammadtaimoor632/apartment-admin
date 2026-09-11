@@ -3,7 +3,7 @@
  * Plugin Name: Fluent Forms Dynamic Webpages
  * Plugin URI:  https://example.com/
  * Description: Maps Fluent Forms to specific webpages and populates them dynamically with submission data.
- * Version:     1.0.0
+ * Version:     1.0.2
  * Author:      Your Name
  * License:     GPL-2.0+
  */
@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
 
-define('FF_DYNAMIC_PAGES_VERSION', '1.0.0');
+define('FF_DYNAMIC_PAGES_VERSION', '1.0.2');
 define('FF_DYNAMIC_PAGES_DIR', plugin_dir_path(__FILE__));
 define('FF_DYNAMIC_PAGES_URL', plugin_dir_url(__FILE__));
 

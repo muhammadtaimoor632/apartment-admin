@@ -123,6 +123,8 @@ class FDP_Admin_Meta_Boxes
         if ($wpdb->get_var("SHOW TABLES LIKE '$forms_table'") === $forms_table) {
             $forms = $wpdb->get_results("SELECT id, title FROM {$forms_table} ORDER BY id DESC");
         }
+        
+        $order_identifier_field = get_post_meta($post->ID, '_fdp_order_identifier_field', true);
 
         echo '<p><label for="fdp_mapped_form_id">';
         _e('Select the Fluent Form to map to this webpage:', 'fluent-dynamic-pages');
@@ -139,6 +141,12 @@ class FDP_Admin_Meta_Boxes
             echo '<option value="" disabled>' . __('No Fluent Forms found. Is Fluent Forms installed?', 'fluent-dynamic-pages') . '</option>';
         }
         echo '</select>';
+
+        echo '<p><label for="fdp_order_identifier_field">';
+        _e('Dynamic Field to Show with Property Name (Optional):', 'fluent-dynamic-pages');
+        echo '</label></p>';
+        echo '<input type="text" id="fdp_order_identifier_field" name="fdp_order_identifier_field" value="' . esc_attr($order_identifier_field) . '" style="width: 100%; max-width: 400px;" placeholder="' . __('e.g., apartment_number', 'fluent-dynamic-pages') . '" />';
+        echo '<p class="description">' . __('Enter the name attribute of the field (e.g., apartment_number) to append it to the property name in WooCommerce orders.', 'fluent-dynamic-pages') . '</p>';
 
         echo '<div id="fdp_form_fields_container" style="margin-top: 15px; padding: 10px; background: #f9f9f9; border: 1px solid #ddd;">';
         echo '<p><strong>' . __('Available Form Fields (Name Attributes)', 'fluent-dynamic-pages') . '</strong></p>';
@@ -470,6 +478,11 @@ class FDP_Admin_Meta_Boxes
         if (isset($_POST['fdp_static_content'])) {
             $static_content = current_user_can('unfiltered_html') ? $_POST['fdp_static_content'] : wp_slash(wp_kses_post(wp_unslash($_POST['fdp_static_content'])));
             update_post_meta($post_id, '_fdp_static_content', $static_content);
+        }
+
+        if (isset($_POST['fdp_order_identifier_field'])) {
+            $order_identifier = sanitize_text_field($_POST['fdp_order_identifier_field']);
+            update_post_meta($post_id, '_fdp_order_identifier_field', $order_identifier);
         }
 
         if (isset($_POST['fdp_heading_settings'])) {
