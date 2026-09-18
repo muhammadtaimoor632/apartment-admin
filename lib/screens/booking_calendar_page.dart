@@ -6,6 +6,22 @@ import 'package:wild_atlantic_hub/services/api_service.dart';
 import 'package:wild_atlantic_hub/utils/form_label_mapper.dart';
 import 'package:intl/intl.dart';
 
+class _FilterOption {
+  final String id;
+  final String label;
+  final IconData icon;
+  final Color iconColor;
+  final double paddingLeft;
+
+  _FilterOption({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.iconColor,
+    this.paddingLeft = 0.0,
+  });
+}
+
 class BookingCalendarPage extends StatefulWidget {
   const BookingCalendarPage({super.key});
 
@@ -19,7 +35,7 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
   bool _isLoading = true;
   String? _errorMessage;
   late DateTime _currentMonth;
-  int _selectedCalendarIndex = -1;
+  String _selectedCalendarId = 'all';
 
   // Filter state
   String _selectedFilter = 'all'; // all, active, upcoming, blocked
@@ -59,7 +75,7 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
   BookingCalendar? get _activeCalendar {
     if (_calendars.isEmpty) return null;
     
-    if (_selectedCalendarIndex == -1) {
+    if (_selectedCalendarId == 'all') {
       final allEvents = <BookingEvent>[];
       final allRooms = <BookingRoom>[];
       for (final cal in _calendars) {
@@ -68,15 +84,45 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
       }
       return BookingCalendar(
         id: 'all',
-        name: 'Both Properties',
+        name: 'All Properties',
         rooms: allRooms,
         events: allEvents,
         lastSynced: _calendars.first.lastSynced,
       );
     }
     
-    if (_selectedCalendarIndex >= _calendars.length) return _calendars.first;
-    return _calendars[_selectedCalendarIndex];
+    // Check if it's a specific room filter
+    if (_selectedCalendarId.startsWith('room|')) {
+      final parts = _selectedCalendarId.split('|');
+      // Format: room|calId|roomName
+      if (parts.length >= 3) {
+        final calId = parts[1];
+        final roomName = parts.sublist(2).join('|');
+        
+        try {
+          final cal = _calendars.firstWhere((c) => c.id == calId);
+          final roomEvents = cal.events.where((e) => e.room == roomName).toList();
+          final roomObj = cal.rooms.where((r) => r.name == roomName).toList();
+          
+          return BookingCalendar(
+            id: _selectedCalendarId,
+            name: '${cal.name} - $roomName',
+            rooms: roomObj,
+            events: roomEvents,
+            lastSynced: cal.lastSynced,
+          );
+        } catch (e) {
+          // Fallback if calendar not found
+        }
+      }
+    }
+    
+    // Otherwise it's a full calendar filter
+    try {
+      return _calendars.firstWhere((c) => c.id == _selectedCalendarId);
+    } catch (e) {
+      return _calendars.first;
+    }
   }
 
   List<BookingEvent> get _filteredEvents {
@@ -242,6 +288,36 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
 
   // ─── Calendar selector ──────────────────────────────────────────
 
+  List<_FilterOption> get _dropdownOptions {
+    final options = <_FilterOption>[];
+    options.add(_FilterOption(
+      id: 'all',
+      label: 'All Properties',
+      icon: Icons.domain_rounded,
+      iconColor: const Color(0xFF8CB2A4),
+    ));
+
+    for (final cal in _calendars) {
+      options.add(_FilterOption(
+        id: cal.id,
+        label: cal.name,
+        icon: Icons.apartment_rounded,
+        iconColor: Colors.grey[400]!,
+      ));
+      
+      for (final room in cal.rooms) {
+        options.add(_FilterOption(
+          id: 'room|${cal.id}|${room.name}',
+          label: room.name,
+          icon: Icons.meeting_room_rounded,
+          iconColor: Colors.grey[400]!,
+          paddingLeft: 24.0,
+        ));
+      }
+    }
+    return options;
+  }
+
   Widget _buildCalendarSelector() {
     return Container(
       width: double.infinity,
@@ -253,8 +329,10 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
         border: Border.all(color: Colors.grey[200]!),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          value: _selectedCalendarIndex,
+        child: DropdownButton<String>(
+          value: _dropdownOptions.any((o) => o.id == _selectedCalendarId)
+              ? _selectedCalendarId
+              : 'all',
           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF8CB2A4)),
           isExpanded: true,
           dropdownColor: Colors.white,
@@ -264,37 +342,28 @@ class _BookingCalendarPageState extends State<BookingCalendarPage>
             fontWeight: FontWeight.w600,
             color: Colors.grey[800],
           ),
-          onChanged: (int? newValue) {
+          onChanged: (String? newValue) {
             if (newValue != null) {
               setState(() {
-                _selectedCalendarIndex = newValue;
+                _selectedCalendarId = newValue;
               });
             }
           },
-          items: [
-            DropdownMenuItem<int>(
-              value: -1,
-              child: Row(
-                children: [
-                  const Icon(Icons.domain_rounded, size: 20, color: Color(0xFF8CB2A4)),
-                  const SizedBox(width: 12),
-                  const Text('All Properties'),
-                ],
-              ),
-            ),
-            ..._calendars.asMap().entries.map((entry) {
-              return DropdownMenuItem<int>(
-                value: entry.key,
+          items: _dropdownOptions.map((option) {
+            return DropdownMenuItem<String>(
+              value: option.id,
+              child: Padding(
+                padding: EdgeInsets.only(left: option.paddingLeft),
                 child: Row(
                   children: [
-                    Icon(Icons.apartment_rounded, size: 20, color: Colors.grey[400]),
+                    Icon(option.icon, size: 20, color: option.iconColor),
                     const SizedBox(width: 12),
-                    Text(entry.value.name),
+                    Text(option.label),
                   ],
                 ),
-              );
-            }),
-          ],
+              ),
+            );
+          }).toList(),
         ),
       ),
     );
